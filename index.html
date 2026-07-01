@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<base target="_top">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#e9edeb; --surface:#ffffff; --surface-2:#f4f6f5;
+  --ink:#13262b; --muted:#5f7076; --line:#d7dedb;
+  --primary:#0e4c5a; --primary-2:#12697c; --primary-ink:#eaf5f6;
+  --accent:#cf7350; --accent-soft:#f6e6de;
+  --ok:#2e7d5b; --warn:#c1852a; --danger:#b23b3b;
+  --r:12px; --r-sm:8px; --shadow:0 1px 2px rgba(19,38,43,.06),0 8px 24px -12px rgba(19,38,43,.18);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font-family:"IBM Plex Sans",system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:14.5px;line-height:1.45}
+.mono{font-family:"IBM Plex Mono",monospace}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:14px}
+a{color:var(--primary-2)}
+.hidden{display:none!important}
+
+/* ---------- LOGIN ---------- */
+.auth{min-height:100%;display:grid;place-items:center;padding:24px;
+  background:radial-gradient(1200px 600px at 20% -10%,#12697c22,transparent),
+             radial-gradient(900px 500px at 110% 110%,#cf735022,transparent),var(--bg)}
+.auth-card{width:100%;max-width:400px;background:var(--surface);border:1px solid var(--line);
+  border-radius:16px;box-shadow:var(--shadow);padding:32px 28px}
+.brand{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.brand .mark{width:34px;height:34px;border-radius:9px;background:var(--primary);color:#fff;
+  display:grid;place-items:center;font-weight:700;font-family:"Fraunces",serif;font-size:19px}
+.brand h1{font-family:"Fraunces",serif;font-weight:600;font-size:22px;margin:0;letter-spacing:.2px}
+.auth p.sub{color:var(--muted);margin:2px 0 22px;font-size:13px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:6px;
+  text-transform:uppercase;letter-spacing:.4px}
+.field input,.field select,.field textarea{width:100%;padding:10px 12px;border:1px solid var(--line);
+  border-radius:var(--r-sm);background:var(--surface-2);color:var(--ink);outline:none;transition:.15s}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--primary-2);
+  background:#fff;box-shadow:0 0 0 3px #12697c22}
+.btn{border:none;border-radius:var(--r-sm);padding:11px 16px;font-weight:600;font-size:14px;
+  background:var(--primary);color:#fff;transition:.15s;display:inline-flex;align-items:center;gap:8px;justify-content:center}
+.btn:hover{background:var(--primary-2)}
+.btn:disabled{opacity:.55;cursor:default}
+.btn.block{width:100%}
+.btn.ghost{background:transparent;color:var(--primary-2);border:1px solid var(--line)}
+.btn.ghost:hover{background:var(--surface-2)}
+.btn.accent{background:var(--accent)} .btn.accent:hover{filter:brightness(1.05)}
+.btn.sm{padding:7px 11px;font-size:13px}
+.err{color:var(--danger);font-size:13px;margin-top:8px;min-height:18px}
+.note{font-size:12px;color:var(--muted);margin-top:16px;text-align:center}
+
+/* ---------- APP SHELL ---------- */
+.app{display:grid;grid-template-columns:232px 1fr;min-height:100%}
+.side{background:var(--primary);color:var(--primary-ink);padding:18px 14px;display:flex;flex-direction:column;gap:4px;position:sticky;top:0;height:100vh}
+.side .brand h1{color:#fff}.side .brand .mark{background:#fff;color:var(--primary)}
+.side .brand{margin-bottom:22px;padding:0 6px}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav button{display:flex;align-items:center;gap:11px;width:100%;text-align:left;background:transparent;
+  border:none;color:#cfe4e7;padding:10px 12px;border-radius:9px;font-weight:500;font-size:14px}
+.nav button svg{width:18px;height:18px;flex:none;opacity:.85}
+.nav button:hover{background:#ffffff16;color:#fff}
+.nav button.active{background:#ffffff22;color:#fff;font-weight:600}
+.side .spacer{flex:1}
+.side .who{padding:10px 12px;border-top:1px solid #ffffff22;margin-top:8px;font-size:13px}
+.side .who .nm{font-weight:600;color:#fff}.side .who .rl{color:#a9cdd2;font-size:11.5px;text-transform:uppercase;letter-spacing:.4px}
+
+.main{padding:22px 26px 60px;max-width:1180px}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:20px;flex-wrap:wrap}
+.topbar h2{font-family:"Fraunces",serif;font-weight:600;font-size:24px;margin:0}
+.topbar .tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.select-inline{padding:8px 11px;border:1px solid var(--line);border-radius:var(--r-sm);background:#fff}
+.search{padding:9px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:#fff;min-width:220px}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.grid{display:grid;gap:14px}
+.kpis{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
+.kpi{padding:16px 18px}
+.kpi .lab{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+.kpi .val{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:30px;margin-top:6px;line-height:1}
+.kpi .sub{font-size:12px;color:var(--muted);margin-top:6px}
+.kpi .val small{font-size:15px;color:var(--muted)}
+.kpi.hl{background:linear-gradient(180deg,#0e4c5a,#12697c);color:#fff;border:none}
+.kpi.hl .lab,.kpi.hl .sub{color:#cfe4e7}
+.arrow{color:var(--accent);font-weight:700}
+
+.panel{padding:18px}
+.panel h3{margin:0 0 12px;font-size:15px;font-weight:700}
+.bars{display:flex;flex-direction:column;gap:7px}
+.bar-row{display:grid;grid-template-columns:150px 1fr 38px;align-items:center;gap:10px;font-size:13px}
+.bar{height:9px;border-radius:6px;background:var(--surface-2);overflow:hidden}
+.bar>span{display:block;height:100%;background:var(--primary-2)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:860px){.two{grid-template-columns:1fr}}
+
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);font-size:13.5px;vertical-align:middle}
+th{font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:600;background:var(--surface-2)}
+tr:last-child td{border-bottom:none}
+.tbl-wrap{overflow:auto;border-radius:var(--r)}
+.pill{display:inline-block;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill.p1,.pill.p2{background:var(--accent-soft);color:#a8471f}
+.pill.p3,.pill.p4{background:#fbf0da;color:#8a5a10}
+.pill.pn{background:var(--surface-2);color:var(--muted)}
+.pill.ok{background:#dff0e7;color:#1f6047}.pill.warn{background:#fbf0da;color:#8a5a10}.pill.bad{background:#f7dede;color:#8f2b2b}
+.tag{background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:2px 7px;font-size:12px;color:var(--muted)}
+.rowlink{cursor:pointer}.rowlink:hover td{background:#f0faf9}
+.empty{padding:40px;text-align:center;color:var(--muted)}
+.empty h4{margin:0 0 4px;color:var(--ink);font-size:15px}
+
+/* ---------- MODAL / DRAWER ---------- */
+.overlay{position:fixed;inset:0;background:#13262b66;display:grid;place-items:center;padding:20px;z-index:40}
+.modal{width:100%;max-width:560px;max-height:90vh;overflow:auto;background:#fff;border-radius:14px;box-shadow:var(--shadow)}
+.drawer{width:100%;max-width:620px;max-height:94vh;overflow:auto;background:#fff;border-radius:14px;box-shadow:var(--shadow)}
+.modal-h{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#fff;z-index:2}
+.modal-h h3{margin:0;font-size:17px;font-family:"Fraunces",serif;font-weight:600}
+.modal-b{padding:20px}
+.modal-f{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end;position:sticky;bottom:0;background:#fff}
+.x{background:transparent;border:none;font-size:22px;color:var(--muted);line-height:1}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-grid .full{grid-column:1/-1}
+@media(max-width:560px){.form-grid{grid-template-columns:1fr}}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:6px 11px;font-size:12.5px;color:var(--ink);user-select:none}
+.chip.on{background:var(--primary);border-color:var(--primary);color:#fff}
+.sec-t{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--primary-2);margin:20px 0 10px;border-top:1px dashed var(--line);padding-top:14px}
+.sec-t:first-child{border:none;margin-top:0;padding-top:0}
+
+/* toast */
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;
+  padding:11px 18px;border-radius:10px;font-size:13.5px;z-index:60;box-shadow:var(--shadow);opacity:0;transition:.25s}
+.toast.show{opacity:1}
+.toast.bad{background:var(--danger)}
+
+/* responsive shell */
+@media(max-width:800px){
+  .app{grid-template-columns:1fr}
+  .side{position:fixed;bottom:0;left:0;right:0;top:auto;height:auto;flex-direction:row;z-index:30;
+    padding:6px;gap:0;justify-content:space-around;overflow:auto}
+  .side .brand,.side .spacer,.side .who{display:none}
+  .nav{flex-direction:row;gap:2px;width:100%;justify-content:space-around}
+  .nav button{flex-direction:column;gap:3px;font-size:10px;padding:7px 6px;text-align:center;color:#bcdadd}
+  .nav button span.lb{font-size:10px}
+  .main{padding:16px 14px 90px}
+}
+.spin{width:16px;height:16px;border:2px solid #ffffff66;border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;display:inline-block}
+@keyframes sp{to{transform:rotate(360deg)}}
+.loading-full{min-height:100%;display:grid;place-items:center;color:var(--muted)}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+/* ============ RPC ============ */
+function rpc(fn){
+  var args = Array.prototype.slice.call(arguments,1);
+  return new Promise(function(res,rej){
+    google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn].apply(google.script.run,args);
+  });
+}
+var STATE={token:null,user:null,dom:null,view:'dashboard'};
+
+/* ============ HELPERS ============ */
+var $=function(s,el){return (el||document).querySelector(s);};
+var el=function(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;};
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(m){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];});}
+function toast(msg,bad){var t=el('div','toast'+(bad?' bad':''),esc(msg));document.body.appendChild(t);
+  requestAnimationFrame(function(){t.classList.add('show');});
+  setTimeout(function(){t.classList.remove('show');setTimeout(function(){t.remove();},300);},2600);}
+function fmtDate(v){if(!v)return '—';var d=new Date(v);if(isNaN(d))return esc(v);
+  return d.toLocaleDateString('pt-BR');}
+function opts(arr,sel){return arr.map(function(o){return '<option'+(o===sel?' selected':'')+'>'+esc(o)+'</option>';}).join('');}
+function optsBlank(arr,sel){return '<option value="">—</option>'+opts(arr,sel);}
+function icon(n){var I={
+  dashboard:'<path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>',
+  fila:'<path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>',
+  pacientes:'<path d="M16 11a4 4 0 10-8 0 4 4 0 008 0zM3 21a9 9 0 0118 0" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>',
+  triagem:'<path d="M12 3v18M5 8c0 4 3 6 7 6M19 8c0 4-3 6-7 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>',
+  reunioes:'<path d="M7 11a3 3 0 100-6 3 3 0 000 6zm10 0a3 3 0 100-6 3 3 0 000 6zM2 20a5 5 0 0110 0M12 20a5 5 0 0110 0" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>',
+  usuarios:'<path d="M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>'
+};return '<svg viewBox="0 0 24 24" fill="currentColor">'+(I[n]||'')+'</svg>';}
+
+/* ============ MODAL ============ */
+function openModal(html,cls){
+  closeModal();
+  var ov=el('div','overlay');ov.id='ov';
+  ov.innerHTML='<div class="'+(cls||'modal')+'">'+html+'</div>';
+  ov.addEventListener('mousedown',function(e){if(e.target===ov)closeModal();});
+  document.body.appendChild(ov);
+  return ov;
+}
+function closeModal(){var o=$('#ov');if(o)o.remove();}
+
+/* ============ BOOT ============ */
+window.addEventListener('load',renderLogin);
+
+/* ============ LOGIN ============ */
+function renderLogin(){
+  var r=$('#root');
+  r.innerHTML=
+  '<div class="auth"><div class="auth-card">'+
+    '<div class="brand"><div class="mark">F</div><h1>FONO HUC</h1></div>'+
+    '<p class="sub">Fonoaudiologia Hospitalar — acesso da equipe</p>'+
+    '<div class="field"><label>Usuário</label><input id="lg" autocomplete="username" placeholder="seu login"></div>'+
+    '<div class="field"><label>Senha</label><input id="pw" type="password" autocomplete="current-password" placeholder="••••••••"></div>'+
+    '<button class="btn block" id="go">Entrar</button>'+
+    '<div class="err" id="er"></div>'+
+    '<div class="note">Primeiro acesso? Use as credenciais fornecidas pela coordenação.<br>O sistema pedirá para você criar uma nova senha.</div>'+
+  '</div></div>';
+  var go=$('#go');
+  function submit(){
+    var l=$('#lg').value, p=$('#pw').value; $('#er').textContent='';
+    if(!l||!p){$('#er').textContent='Preencha usuário e senha.';return;}
+    go.disabled=true;go.innerHTML='<span class="spin"></span> Entrando…';
+    rpc('login',l,p).then(function(res){
+      if(!res.ok){go.disabled=false;go.textContent='Entrar';$('#er').textContent=res.erro;return;}
+      STATE.token=res.token;STATE.user=res.user;
+      if(res.primeiroAcesso){renderFirstAccess();return;}
+      afterLogin();
+    }).catch(function(e){go.disabled=false;go.textContent='Entrar';$('#er').textContent='Falha de conexão. Tente novamente.';});
+  }
+  go.onclick=submit;
+  $('#pw').addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
+  $('#lg').focus();
+}
+
+function renderFirstAccess(){
+  var r=$('#root');
+  r.innerHTML=
+  '<div class="auth"><div class="auth-card">'+
+    '<div class="brand"><div class="mark">F</div><h1>Criar nova senha</h1></div>'+
+    '<p class="sub">Por segurança, defina sua senha pessoal para continuar.</p>'+
+    '<div class="field"><label>Nova senha</label><input id="n1" type="password" placeholder="mínimo 6 caracteres"></div>'+
+    '<div class="field"><label>Confirmar senha</label><input id="n2" type="password"></div>'+
+    '<button class="btn block" id="sv">Salvar e continuar</button>'+
+    '<div class="err" id="er"></div>'+
+  '</div></div>';
+  $('#sv').onclick=function(){
+    var a=$('#n1').value,b=$('#n2').value;$('#er').textContent='';
+    if(a.length<6){$('#er').textContent='A senha precisa ter ao menos 6 caracteres.';return;}
+    if(a!==b){$('#er').textContent='As senhas não conferem.';return;}
+    var btn=$('#sv');btn.disabled=true;btn.innerHTML='<span class="spin"></span> Salvando…';
+    rpc('trocarSenha',STATE.token,a).then(function(res){
+      if(!res.ok){btn.disabled=false;btn.textContent='Salvar e continuar';$('#er').textContent=res.erro;return;}
+      toast('Senha atualizada.');afterLogin();
+    });
+  };
+}
+
+function afterLogin(){
+  var r=$('#root');r.innerHTML='<div class="loading-full">Carregando…</div>';
+  rpc('apiBootstrap',STATE.token).then(function(res){
+    if(!res.ok){renderLogin();return;}
+    STATE.dom=res.dominios;STATE.user=res.user;renderShell();nav('dashboard');
+  }).catch(function(){renderLogin();});
+}
+
+/* ============ SHELL ============ */
+function renderShell(){
+  var admin=STATE.user.perfil==='ADMIN';
+  var items=[['dashboard','Painel'],['fila','Fila'],['pacientes','Pacientes'],
+            ['triagem','Triagem'],['reunioes','Reuniões']];
+  if(admin)items.push(['usuarios','Usuários']);
+  var navHtml=items.map(function(it){
+    return '<button data-v="'+it[0]+'">'+icon(it[0])+'<span class="lb">'+it[1]+'</span></button>';
+  }).join('');
+  $('#root').innerHTML=
+  '<div class="app">'+
+    '<aside class="side">'+
+      '<div class="brand"><div class="mark">F</div><h1>FONO HUC</h1></div>'+
+      '<nav class="nav">'+navHtml+'</nav>'+
+      '<div class="spacer"></div>'+
+      '<div class="who"><div class="nm">'+esc(STATE.user.nome)+'</div><div class="rl">'+esc(STATE.user.perfil)+'</div></div>'+
+      '<button class="nav-out" style="background:transparent;border:none;color:#cfe4e7;padding:10px 12px;text-align:left;border-radius:9px;font-size:13px" id="out">Sair</button>'+
+    '</aside>'+
+    '<main class="main" id="main"></main>'+
+  '</div>';
+  document.querySelectorAll('.nav button').forEach(function(b){
+    b.onclick=function(){nav(b.getAttribute('data-v'));};
+  });
+  $('#out').onclick=function(){rpc('logout',STATE.token);STATE.token=null;renderLogin();};
+}
+function nav(v){
+  STATE.view=v;
+  document.querySelectorAll('.nav button').forEach(function(b){
+    b.classList.toggle('active',b.getAttribute('data-v')===v);});
+  ({dashboard:viewDashboard,fila:viewFila,pacientes:viewPacientes,
+    triagem:viewTriagem,reunioes:viewReunioes,usuarios:viewUsuarios}[v])();
+}
+function main(){return $('#main');}
+function loadingView(){main().innerHTML='<div class="loading-full" style="min-height:50vh">Carregando…</div>';}
+
+/* ============ DASHBOARD ============ */
+function viewDashboard(){
+  loadingView();
+  var hoje=new Date(),de=new Date(hoje.getFullYear(),hoje.getMonth(),1);
+  var deStr=de.toISOString().slice(0,10),ateStr=hoje.toISOString().slice(0,10);
+  rpc('dashboard',STATE.token,{de:deStr,ate:ateStr}).then(function(res){
+    var k=res.kpis;
+    var foisMax=Math.max.apply(null,Object.keys(k.foisDist).map(function(x){return k.foisDist[x];}).concat([1]));
+    var foisBars=Object.keys(k.foisDist).map(function(key){
+      var n=key.replace('N',''),v=k.foisDist[key];
+      return '<div class="bar-row"><span>Nível '+n+'</span><div class="bar"><span style="width:'+(v/foisMax*100)+'%"></span></div><b class="mono">'+v+'</b></div>';
+    }).join('');
+    var prodMax=Math.max.apply(null,k.producao.map(function(p){return p.total;}).concat([1]));
+    var prod=k.producao.length?k.producao.map(function(p){
+      return '<div class="bar-row"><span>'+esc(p.nome)+'</span><div class="bar"><span style="width:'+(p.total/prodMax*100)+'%;background:var(--accent)"></span></div><b class="mono">'+p.total+'</b></div>';
+    }).join(''):'<div class="empty" style="padding:20px">Sem atendimentos no período.</div>';
+
+    main().innerHTML=
+    '<div class="topbar"><h2>Painel do mês</h2>'+
+      '<div class="tools"><input type="date" class="select-inline" id="dde" value="'+deStr+'">'+
+      '<input type="date" class="select-inline" id="date" value="'+ateStr+'">'+
+      '<button class="btn sm" id="aplica">Aplicar</button></div></div>'+
+    '<div class="grid kpis" style="margin-bottom:14px">'+
+      kpi('Pacientes ativos',k.pacientesAtivos,'internações em aberto','hl')+
+      kpi('Atendimentos',k.atendimentosPeriodo,'no período')+
+      kpi('FOIS médio',(k.foisMediaAdmissao!=null?k.foisMediaAdmissao+' <span class="arrow">→</span> '+k.foisMediaAlta:'—'),(k.foisEvolucaoN||0)+' com alta')+
+      kpi('Desmame de VAA',(k.tempoMedioDesmame!=null?k.tempoMedioDesmame+'<small> d</small>':'—'),(k.desmamesN||0)+' concluídos')+
+      kpi('Decanulação',k.decanulacaoConcluidas+'<small>/'+k.decanulacaoProtocolo+'</small>','concluídas / em protocolo')+
+      kpi('Triagem OK',k.triagemOk+'<small>/'+k.triagemTotal+'</small>',k.triagemPendentes+' pendentes de reteste')+
+    '</div>'+
+    '<div class="two">'+
+      '<div class="card panel"><h3>FOIS na admissão</h3><div class="bars">'+foisBars+'</div></div>'+
+      '<div class="card panel"><h3>Produção por profissional</h3><div class="bars">'+prod+'</div></div>'+
+    '</div>'+
+    '<div class="grid kpis" style="margin-top:14px">'+
+      kpi('Reuniões',k.reunioes,k.reunioesParticipantes+' participantes')+
+    '</div>';
+    $('#aplica').onclick=function(){
+      loadingView();
+      rpc('dashboard',STATE.token,{de:$('#dde').value,ate:$('#date').value}).then(function(){viewDashboard();});
+    };
+  });
+}
+function kpi(lab,val,sub,cls){
+  return '<div class="card kpi '+(cls||'')+'"><div class="lab">'+lab+'</div>'+
+    '<div class="val">'+val+'</div><div class="sub">'+esc(sub)+'</div></div>';
+}
+
+/* ============ FILA ============ */
+function viewFila(){
+  loadingView();
+  main().innerHTML=
+  '<div class="topbar"><h2>Fila de atendimento</h2>'+
+    '<div class="tools">'+
+      '<select class="select-inline" id="fctx"><option value="">Todos os contextos</option>'+opts(STATE.dom.contexto)+'</select>'+
+      '<select class="select-inline" id="funi"><option value="">Todas as unidades</option>'+opts(STATE.dom.unidades)+'</select>'+
+    '</div></div><div id="filaBody"></div>';
+  var load=function(){
+    var f={contexto:$('#fctx').value,unidade:$('#funi').value};
+    $('#filaBody').innerHTML='<div class="loading-full" style="min-height:30vh">Carregando…</div>';
+    rpc('listFila',STATE.token,f).then(function(res){renderFila(res.fila);});
+  };
+  $('#fctx').onchange=load;$('#funi').onchange=load;load();
+}
+function renderFila(fila){
+  if(!fila.length){$('#filaBody').innerHTML='<div class="card empty"><h4>Fila vazia</h4>Nenhuma internação ativa com esse filtro. Interne um paciente na aba Pacientes.</div>';return;}
+  var rows=fila.map(function(l){
+    var pc=prioClass(l.prioridade);
+    var fois=l.foisAdmissao?('<span class="tag">'+esc(String(l.foisAdmissao).replace('NÍVEL','N').split(' - ')[0])+'</span>'):'';
+    var dec=String(l.decanulacao).toUpperCase()==='SIM'?'<span class="pill warn">decanulação</span>':'';
+    var acao=l.temEpisodio
+      ? '<button class="btn sm ghost" data-ep="'+l.episodioId+'">Abrir ficha</button>'
+      : '<button class="btn sm accent" data-newep="'+l.internacaoId+'" data-pid="'+l.pacienteId+'">Abrir episódio</button>';
+    return '<tr><td><span class="pill '+pc+'">'+esc(l.prioridade||'—')+'</span></td>'+
+      '<td><b>'+esc(l.nome)+'</b><br><span class="tag mono">'+esc(l.prontuario||'')+'</span></td>'+
+      '<td>'+esc(l.unidade||'')+(l.leito?' · '+esc(l.leito):'')+'</td>'+
+      '<td>'+fois+' '+dec+'</td><td style="text-align:right">'+acao+'</td></tr>';
+  }).join('');
+  $('#filaBody').innerHTML='<div class="card tbl-wrap"><table><thead><tr>'+
+    '<th>Prioridade</th><th>Paciente</th><th>Local</th><th>Estado</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  $('#filaBody').querySelectorAll('[data-ep]').forEach(function(b){b.onclick=function(){abrirFicha(b.getAttribute('data-ep'));};});
+  $('#filaBody').querySelectorAll('[data-newep]').forEach(function(b){
+    b.onclick=function(){formEpisodio({internacaoId:b.getAttribute('data-newep'),pacienteId:b.getAttribute('data-pid')});};});
+}
+function prioClass(p){var n=(String(p).match(/P?(\d)/)||[])[1];return p?('p'+(n||'n')):'pn';}
+
+/* ============ PACIENTES ============ */
+function viewPacientes(){
+  main().innerHTML=
+  '<div class="topbar"><h2>Pacientes</h2>'+
+    '<div class="tools"><input class="search" id="q" placeholder="Buscar por nome ou prontuário…">'+
+    '<button class="btn" id="novo">+ Novo paciente</button></div></div>'+
+    '<div id="pbody"><div class="loading-full" style="min-height:30vh">Carregando…</div></div>';
+  var load=function(){rpc('listPacientes',STATE.token,$('#q').value).then(renderPacientes);};
+  var t;$('#q').addEventListener('input',function(){clearTimeout(t);t=setTimeout(load,250);});
+  $('#novo').onclick=function(){formPaciente();};
+  load();
+}
+function renderPacientes(res){
+  var ps=res.pacientes;
+  if(!ps.length){$('#pbody').innerHTML='<div class="card empty"><h4>Nenhum paciente</h4>Cadastre o primeiro com “+ Novo paciente”.</div>';return;}
+  var rows=ps.map(function(p){
+    return '<tr class="rowlink" data-id="'+p.id+'"><td><b>'+esc(p.nome)+'</b></td>'+
+      '<td class="mono">'+esc(p.prontuario||'')+'</td><td>'+esc(p.sexo||'')+'</td>'+
+      '<td>'+fmtDate(p.dataNascimento)+'</td>'+
+      '<td style="text-align:right"><button class="btn sm accent" data-int="'+p.id+'">Internar</button></td></tr>';
+  }).join('');
+  $('#pbody').innerHTML='<div class="card tbl-wrap"><table><thead><tr>'+
+    '<th>Nome</th><th>Prontuário</th><th>Sexo</th><th>Nascimento</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  $('#pbody').querySelectorAll('[data-int]').forEach(function(b){
+    b.onclick=function(e){e.stopPropagation();formInternar(b.getAttribute('data-int'));};});
+  $('#pbody').querySelectorAll('.rowlink').forEach(function(tr){
+    tr.onclick=function(){formPaciente(ps.filter(function(x){return x.id==tr.getAttribute('data-id');})[0]);};});
+}
+function formPaciente(p){
+  p=p||{};
+  openModal(
+   '<div class="modal-h"><h3>'+(p.id?'Editar paciente':'Novo paciente')+'</h3><button class="x" onclick="closeModal()">×</button></div>'+
+   '<div class="modal-b"><div class="form-grid">'+
+     '<div class="field full"><label>Nome</label><input id="f_nome" value="'+esc(p.nome||'')+'"></div>'+
+     '<div class="field"><label>Prontuário</label><input id="f_pront" value="'+esc(p.prontuario||'')+'"></div>'+
+     '<div class="field"><label>Sexo</label><select id="f_sexo">'+optsBlank(STATE.dom.sexo,p.sexo)+'</select></div>'+
+     '<div class="field full"><label>Data de nascimento</label><input type="date" id="f_nasc" value="'+(p.dataNascimento?new Date(p.dataNascimento).toISOString().slice(0,10):'')+'"></div>'+
+   '</div></div>'+
+   '<div class="modal-f"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn" id="f_save">Salvar</button></div>');
+  $('#f_save').onclick=function(){
+    var o={id:p.id,nome:$('#f_nome').value.trim(),prontuario:$('#f_pront').value.trim(),
+      sexo:$('#f_sexo').value,dataNascimento:$('#f_nasc').value};
+    if(!o.nome||!o.prontuario){toast('Nome e prontuário são obrigatórios.',true);return;}
+    saveBtn('#f_save');
+    rpc('savePaciente',STATE.token,o).then(function(r){
+      if(!r.ok){toast(r.erro,true);return;}closeModal();toast('Paciente salvo.');
+      if(STATE.view==='pacientes')viewPacientes();
+    });
+  };
+}
+function formInternar(pid){
+  openModal(
+   '<div class="modal-h"><h3>Internar paciente</h3><button class="x" onclick="closeModal()">×</button></div>'+
+   '<div class="modal-b"><div class="form-grid">'+
+     '<div class="field"><label>Contexto</label><select id="i_ctx">'+opts(STATE.dom.contexto)+'</select></div>'+
+     '<div class="field"><label>Unidade</label><select id="i_uni">'+opts(STATE.dom.unidades)+'</select></div>'+
+     '<div class="field"><label>Setor</label><input id="i_set" placeholder="ex.: CLÍNICA MÉDICA"></div>'+
+     '<div class="field"><label>Leito</label><input id="i_lei" placeholder="ex.: A514.01"></div>'+
+     '<div class="field full"><label>Data de admissão</label><input type="date" id="i_dt" value="'+new Date().toISOString().slice(0,10)+'"></div>'+
+   '</div></div>'+
+   '<div class="modal-f"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn accent" id="i_save">Internar e abrir episódio</button></div>');
+  $('#i_save').onclick=function(){
+    var o={pacienteId:pid,contexto:$('#i_ctx').value,unidade:$('#i_uni').value,
+      setor:$('#i_set').value,leito:$('#i_lei').value,dataAdmissao:$('#i_dt').value};
+    saveBtn('#i_save');
+    rpc('admitir',STATE.token,o).then(function(r){
+      if(!r.ok){toast(r.erro||'Erro',true);return;}
+      closeModal();toast('Paciente internado.');
+      formEpisodio({internacaoId:r.id,pacienteId:pid,contexto:o.contexto});
+    });
+  };
+}
+
+/* ============ EPISÓDIO ============ */
+function abrirFicha(epId){
+  loadingView();
+  rpc('getFicha',STATE.token,epId).then(function(res){
+    if(!res.ok){toast(res.erro,true);return;}
+    var e=res.episodio,p=res.paciente,i=res.internacao,at=res.atendimentos;
+    var atRows=at.length?at.map(function(a){
+      return '<tr><td>'+fmtDate(a.data)+'</td><td>'+esc(a.profissional)+'</td>'+
+        '<td>'+esc(a.condutas||'')+'</td><td>'+esc(a.turno||'')+'</td></tr>';
+    }).join(''):'<tr><td colspan="4" class="empty" style="padding:22px">Sem atendimentos registrados.</td></tr>';
+    main().innerHTML=
+    '<div class="topbar"><h2>Ficha do episódio</h2>'+
+      '<div class="tools"><button class="btn ghost sm" id="voltar">← Fila</button>'+
+      '<button class="btn ghost sm" id="edit">Editar dados</button>'+
+      '<button class="btn accent sm" id="atd">+ Registrar atendimento</button></div></div>'+
+    '<div class="card panel" style="margin-bottom:14px">'+
+      '<h3 style="font-family:\'Fraunces\',serif;font-size:19px">'+esc(p.nome)+' <span class="tag mono">'+esc(p.prontuario||'')+'</span></h3>'+
+      '<div class="two" style="margin-top:6px">'+
+        '<div>'+kv('Local',esc(i.unidade||'')+(i.leito?' · '+esc(i.leito):''))+
+          kv('Prioridade',esc(e.prioridade||'—'))+kv('Solicitação',esc(e.solicitacao||'—'))+
+          kv('Hipótese',esc(e.hipoteseDiagnostica||'—'))+'</div>'+
+        '<div>'+kv('FOIS admissão → alta',esc(short(e.foisAdmissao))+' <span class="arrow">→</span> '+esc(short(e.foisAlta)||'…'))+
+          kv('Dieta admissão',esc(e.dietaAdmissao||'—'))+
+          kv('VAA',(e.vaaInicio?fmtDate(e.vaaInicio):'—')+' → '+(e.vaaConclusao?fmtDate(e.vaaConclusao):'…')+(e.vaaJustificativa?' ('+esc(e.vaaJustificativa)+')':''))+
+          kv('Decanulação',esc(e.decanulacao||'—')+(e.decanulacaoData?' · '+fmtDate(e.decanulacaoData):''))+'</div>'+
+      '</div></div>'+
+    '<div class="card tbl-wrap"><table><thead><tr><th>Data</th><th>Profissional</th><th>Condutas</th><th>Turno</th></tr></thead><tbody>'+atRows+'</tbody></table></div>';
+    $('#voltar').onclick=function(){nav('fila');};
+    $('#edit').onclick=function(){formEpisodio(e);};
+    $('#atd').onclick=function(){formAtendimento(e.id,e.pacienteId);};
+  });
+}
+function kv(k,v){return '<div style="margin-bottom:9px"><div class="lab" style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:600">'+k+'</div><div>'+v+'</div></div>';}
+function short(v){return v?String(v).replace('NÍVEL','N').split(' - ')[0]:'';}
+
+function formEpisodio(e){
+  e=e||{};
+  var ped=(e.contexto==='CARDIO PEDIÁTRICA'||e.contexto==='NEONATOLOGIA');
+  var prio=ped?STATE.dom.prioridadePed:STATE.dom.prioridadeAdulto;
+  openModal(
+   '<div class="modal-h"><h3>'+(e.id?'Editar episódio':'Novo episódio')+'</h3><button class="x" onclick="closeModal()">×</button></div>'+
+   '<div class="modal-b">'+
+     '<div class="sec-t">Admissão</div><div class="form-grid">'+
+       '<div class="field"><label>Prioridade</label><select id="e_prio">'+optsBlank(prio,e.prioridade)+'</select></div>'+
+       '<div class="field"><label>Solicitação</label><select id="e_sol">'+optsBlank(STATE.dom.solicitacao,e.solicitacao)+'</select></div>'+
+       '<div class="field full"><label>Hipótese diagnóstica</label><input id="e_hip" value="'+esc(e.hipoteseDiagnostica||'')+'"></div>'+
+       '<div class="field"><label>FOIS na admissão</label><select id="e_foisA">'+optsBlank(STATE.dom.fois,e.foisAdmissao)+'</select></div>'+
+       '<div class="field"><label>Dieta na admissão</label><select id="e_dietaA">'+optsBlank(STATE.dom.dietaAdmissao,e.dietaAdmissao)+'</select></div>'+
+     '</div>'+
+     '<div class="sec-t">Desmame de VAA</div><div class="form-grid">'+
+       '<div class="field"><label>Início da transição</label><input type="date" id="e_vaaI" value="'+dval(e.vaaInicio)+'"></div>'+
+       '<div class="field"><label>Conclusão</label><input type="date" id="e_vaaC" value="'+dval(e.vaaConclusao)+'"></div>'+
+       '<div class="field full"><label>Justificativa</label><select id="e_vaaJ">'+optsBlank(STATE.dom.justificativa,e.vaaJustificativa)+'</select></div>'+
+     '</div>'+
+     '<div class="sec-t">Decanulação</div><div class="form-grid">'+
+       '<div class="field"><label>Em protocolo</label><select id="e_dec">'+optsBlank(STATE.dom.decanulacao,e.decanulacao)+'</select></div>'+
+       '<div class="field"><label>Avaliação p/ cuff</label><input type="date" id="e_decA" value="'+dval(e.decanulacaoAvaliacao)+'"></div>'+
+       '<div class="field full"><label>Data da decanulação</label><input type="date" id="e_decD" value="'+dval(e.decanulacaoData)+'"></div>'+
+     '</div>'+
+     '<div class="sec-t">Alta / desfecho</div><div class="form-grid">'+
+       '<div class="field"><label>FOIS na alta</label><select id="e_foisB">'+optsBlank(STATE.dom.fois,e.foisAlta)+'</select></div>'+
+       '<div class="field"><label>Dieta na alta</label><select id="e_dietaB">'+optsBlank(STATE.dom.dietaAlta,e.dietaAlta)+'</select></div>'+
+       '<div class="field full"><label>Status do episódio</label><select id="e_st">'+opts(['ABERTO','ENCERRADO'],e.status||'ABERTO')+'</select></div>'+
+     '</div>'+
+   '</div>'+
+   '<div class="modal-f"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn" id="e_save">Salvar ficha</button></div>','drawer');
+  $('#e_save').onclick=function(){
+    var o={id:e.id,internacaoId:e.internacaoId,pacienteId:e.pacienteId,
+      prioridade:$('#e_prio').value,solicitacao:$('#e_sol').value,hipoteseDiagnostica:$('#e_hip').value,
+      foisAdmissao:$('#e_foisA').value,dietaAdmissao:$('#e_dietaA').value,
+      vaaInicio:$('#e_vaaI').value,vaaConclusao:$('#e_vaaC').value,vaaJustificativa:$('#e_vaaJ').value,
+      decanulacao:$('#e_dec').value,decanulacaoAvaliacao:$('#e_decA').value,decanulacaoData:$('#e_decD').value,
+      foisAlta:$('#e_foisB').value,dietaAlta:$('#e_dietaB').value,status:$('#e_st').value};
+    saveBtn('#e_save');
+    rpc('saveEpisodio',STATE.token,o).then(function(r){
+      if(!r.ok){toast(r.erro,true);return;}closeModal();toast('Ficha salva.');
+      abrirFicha(r.id);
+    });
+  };
+}
+function dval(v){return v?new Date(v).toISOString().slice(0,10):'';}
+
+function formAtendimento(epId,pid){
+  var sel=[];
+  var chips=STATE.dom.conduta.map(function(c){return '<span class="chip" data-c="'+esc(c)+'">'+esc(c)+'</span>';}).join('');
+  openModal(
+   '<div class="modal-h"><h3>Registrar atendimento</h3><button class="x" onclick="closeModal()">×</button></div>'+
+   '<div class="modal-b"><div class="form-grid">'+
+     '<div class="field"><label>Data</label><input type="date" id="a_dt" value="'+new Date().toISOString().slice(0,10)+'"></div>'+
+     '<div class="field"><label>Turno</label><select id="a_tn">'+optsBlank(STATE.dom.turno)+'</select></div>'+
+     '<div class="field full"><label>Condutas realizadas</label><div class="chips" id="a_ch">'+chips+'</div></div>'+
+     '<div class="field full"><label>Observações</label><textarea id="a_obs" rows="2"></textarea></div>'+
+   '</div></div>'+
+   '<div class="modal-f"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn accent" id="a_save">Registrar</button></div>','drawer');
+  $('#a_ch').querySelectorAll('.chip').forEach(function(c){
+    c.onclick=function(){var v=c.getAttribute('data-c');var k=sel.indexOf(v);
+      if(k<0){sel.push(v);c.classList.add('on');}else{sel.splice(k,1);c.classList.remove('on');}};});
+  $('#a_save').onclick=function(){
+    if(!sel.length){toast('Selecione ao menos uma conduta.',true);return;}
+    saveBtn('#a_save');
+    rpc('registrarAtendimento',STATE.token,{episodioId:epId,pacienteId:pid,
+      data:$('#a_dt').value,condutas:sel,turno:$('#a_tn').value,obs:$('#a_obs').value}).then(function(r){
+      if(!r.ok){toast(r.erro||'Erro',true);return;}closeModal();toast('Atendimento registrado.');abrirFicha(epId);
+    });
+  };
+}
+
+/* ============ TRIAGEM ============ */
+function viewTriagem(){
+  main().innerHTML=
+  '<div class="topbar"><h2>Triagem neonatal</h2>'+
+    '<div class="tools">'+
+      '<select class="select-inline" id="t_tp"><option value="">Todos os testes</option>'+opts(STATE.dom.triagemTipo)+'</select>'+
+      '<label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)"><input type="checkbox" id="t_pend"> só pendentes de reteste</label>'+
+      '<button class="btn" id="t_novo">+ Novo teste</button></div></div>'+
+    '<div id="tbody"><div class="loading-full" style="min-height:30vh">Carregando…</div></div>';
+  var load=function(){rpc('listTriagem',STATE.token,{tipo:$('#t_tp').value,pendentes:$('#t_pend').checked}).then(renderTriagem);};
+  $('#t_tp').onchange=load;$('#t_pend').onchange=load;$('#t_novo').onclick=function(){formTriagem();};
+  load();
+}
+function renderTriagem(res){
+  var ts=res.triagens;
+  if(!ts.length){$('#tbody').innerHTML='<div class="card empty"><h4>Nenhum teste</h4>Registre o primeiro com “+ Novo teste”.</div>';return;}
+  var rows=ts.map(function(t){
+    var rc=resClass(t.resultado);
+    var pend=String(t.encaminhamentoReteste).toUpperCase()==='SIM'&&String(t.statusFollowUp).toUpperCase()!=='CONCLUÍDO';
+    return '<tr><td>'+fmtDate(t.dataExame)+'</td><td><b>'+esc(t.nomeRN||'')+'</b><br><span class="tag mono">'+esc(t.prontuario||'')+'</span></td>'+
+      '<td>'+esc(String(t.tipo).replace('TESTE DA ',''))+'</td>'+
+      '<td><span class="pill '+rc+'">'+esc(t.resultado||'—')+'</span></td>'+
+      '<td>'+(pend?'<span class="pill warn">reteste pendente</span>':esc(t.statusFollowUp||'—'))+'</td>'+
+      '<td>'+esc(t.profissional||'')+'</td></tr>';
+  }).join('');
+  $('#tbody').innerHTML='<div class="card tbl-wrap"><table><thead><tr>'+
+    '<th>Data</th><th>Recém-nascido</th><th>Teste</th><th>Resultado</th><th>Follow-up</th><th>Profissional</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+function resClass(r){var s=String(r).toUpperCase();
+  if(s==='PASSOU'||s==='NORMAL')return 'ok';
+  if(s==='FALHOU'||s==='ALTERADO')return 'bad';return 'warn';}
+function formTriagem(){
+  var tipo=STATE.dom.triagemTipo[0];
+  var resFor=function(tp){return tp==='TESTE DA LINGUINHA'?STATE.dom.resultadoLinguinha:STATE.dom.resultadoOrelhinha;};
+  openModal(
+   '<div class="modal-h"><h3>Novo teste de triagem</h3><button class="x" onclick="closeModal()">×</button></div>'+
+   '<div class="modal-b"><div class="form-grid">'+
+     '<div class="field"><label>Tipo de teste</label><select id="t_tipo">'+opts(STATE.dom.triagemTipo)+'</select></div>'+
+     '<div class="field"><label>Data do exame</label><input type="date" id="t_dt" value="'+new Date().toISOString().slice(0,10)+'"></div>'+
+     '<div class="field"><label>Nome do RN</label><input id="t_nome"></div>'+
+     '<div class="field"><label>Prontuário</label><input id="t_pr"></div>'+
+     '<div class="field"><label>Resultado</label><select id="t_res">'+optsBlank(resFor(tipo))+'</select></div>'+
+     '<div class="field"><label>Encaminhado p/ reteste</label><select id="t_enc">'+optsBlank(['SIM','NÃO'])+'</select></div>'+
+     '<div class="field"><label>Follow-up</label><select id="t_fu">'+optsBlank(STATE.dom.statusFollowUp)+'</select></div>'+
+     '<div class="field"><label>Profissional</label><input id="t_prof" value="'+esc(STATE.user.nome)+'"></div>'+
+     '<div class="field full"><label>Fatores de risco</label><input id="t_fr" placeholder="separe por vírgula, se houver"></div>'+
+   '</div></div>'+
+   '<div class="modal-f"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn" id="t_save">Salvar teste</button></div>','drawer');
+  $('#t_tipo').onchange=function(){$('#t_res').innerHTML=optsBlank(resFor($('#t_tipo').value));};
+  $('#t_save').onclick=function(){
+    var o={tipo:$('#t_tipo').value,dataExame:$('#t_dt').value,nomeRN:$('#t_nome').value,
+      prontuario:$('#t_pr').value,resultado:$('#t_res').value,encaminhamentoReteste:$('#t_enc').value,
+      statusFollowUp:$('#t_fu').value,profissional:$('#t_prof').value,
+      fatoresRisco:$('#t_fr').value?$('#t_fr').value.split(',').map(function(s){return s.trim();}):[]};
+    if(!o.nomeRN){toast('Informe o nome do RN.',true);return;}
+    saveBtn('#t_save');
+    rpc('saveTriagem',STATE.token,o).then(function(r){
+      if(!r.ok){toast(r.erro||'Erro',true);return;}closeModal();toast('Teste registrado.');viewTriagem();
+    });
+  };
+}
+
+/* ============ REUNIÕES ============ */
+function viewReunioes(){
+  main().innerHTML=
+  '<div class="topbar"><h2>Reuniões</h2><div class="tools"><button class="btn" id="r_novo">+ Nova reunião</button></div></div>'+
+  '<div id="rbody"><div class="loading-full" style="min-height:30vh">Carregando…</div></div>';
+  $('#r_novo').onclick=function(){formReuniao();};
+  rpc('listReunioes',STATE.token).then(function(res){
+    var rs=res.reunioes;
+    if(!rs.length){$('#rbody').innerHTML='<div class="card empty"><h4>Nenhuma reunião</h4>Registre a primeira com “+ Nova reunião”.</div>';return;}
+    var rows=rs.map(function(r){return '<tr><td>'+fmtDate(r.data)+'</td><td class="mono">'+esc(r.quantidade)+'</td>'+
+      '<td class="mono">'+esc(r.participantes)+'</td><td>'+esc(r.pauta||'')+'</td></tr>';}).join('');
+    $('#rbody').innerHTML='<div class="card tbl-wrap"><table><thead><tr><th>Data</th><th>Qtd.</th><th>Participantes</th><th>Pauta</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  });
+}
+function formReuniao(){
+  openModal(
+   '<div class="modal-h"><h3>Nova reunião</h3><button class="x" onclick="closeModal()">×</button></div>'+
+   '<div class="modal-b"><div class="form-grid">'+
+     '<div class="field"><label>Data</label><input type="date" id="r_dt" value="'+new Date().toISOString().slice(0,10)+'"></div>'+
+     '<div class="field"><label>Nº de participantes</label><input type="number" id="r_pt" value="0"></div>'+
+     '<div class="field full"><label>Pauta / observações</label><textarea id="r_pa" rows="2"></textarea></div>'+
+   '</div></div>'+
+   '<div class="modal-f"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn" id="r_save">Salvar</button></div>');
+  $('#r_save').onclick=function(){
+    saveBtn('#r_save');
+    rpc('saveReuniao',STATE.token,{data:$('#r_dt').value,quantidade:1,
+      participantes:Number($('#r_pt').value)||0,pauta:$('#r_pa').value}).then(function(r){
+      closeModal();toast('Reunião registrada.');viewReunioes();
+    });
+  };
+}
+
+/* ============ USUÁRIOS ============ */
+function viewUsuarios(){
+  main().innerHTML=
+  '<div class="topbar"><h2>Usuários</h2><div class="tools"><button class="btn" id="u_novo">+ Novo usuário</button></div></div>'+
+  '<div id="ubody"><div class="loading-full" style="min-height:30vh">Carregando…</div></div>';
+  $('#u_novo').onclick=function(){formUsuario();};
+  rpc('listUsuarios',STATE.token).then(function(res){
+    var us=res.usuarios;
+    var rows=us.map(function(u){
+      return '<tr class="rowlink" data-id="'+u.id+'"><td><b>'+esc(u.nome)+'</b></td><td class="mono">'+esc(u.login)+'</td>'+
+        '<td><span class="tag">'+esc(u.perfil)+'</span></td>'+
+        '<td>'+(u.ativo?'<span class="pill ok">ativo</span>':'<span class="pill bad">inativo</span>')+
+        (u.primeiroAcesso?' <span class="pill warn">1º acesso</span>':'')+'</td></tr>';
+    }).join('');
+    $('#ubody').innerHTML='<div class="card tbl-wrap"><table><thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Status</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+    $('#ubody').querySelectorAll('.rowlink').forEach(function(tr){
+      tr.onclick=function(){formUsuario(us.filter(function(x){return x.id==tr.getAttribute('data-id');})[0]);};});
+  });
+}
+function formUsuario(u){
+  u=u||{};
+  openModal(
+   '<div class="modal-h"><h3>'+(u.id?'Editar usuário':'Novo usuário')+'</h3><button class="x" onclick="closeModal()">×</button></div>'+
+   '<div class="modal-b"><div class="form-grid">'+
+     '<div class="field full"><label>Nome</label><input id="u_nome" value="'+esc(u.nome||'')+'"></div>'+
+     '<div class="field"><label>Login</label><input id="u_login" value="'+esc(u.login||'')+'" '+(u.id?'disabled':'')+'></div>'+
+     '<div class="field"><label>Perfil</label><select id="u_perfil">'+opts(STATE.dom.perfil,u.perfil||'FONO')+'</select></div>'+
+     '<div class="field"><label>'+(u.id?'Nova senha (opcional)':'Senha inicial')+'</label><input id="u_senha" placeholder="'+(u.id?'deixe vazio p/ manter':'huc@2026')+'"></div>'+
+     '<div class="field"><label>Ativo</label><select id="u_ativo">'+opts(['SIM','NÃO'],(u.ativo===false?'NÃO':'SIM'))+'</select></div>'+
+   '</div><div class="note" style="text-align:left">A senha definida exige troca no primeiro acesso do usuário.</div></div>'+
+   '<div class="modal-f"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn" id="u_save">Salvar</button></div>');
+  $('#u_save').onclick=function(){
+    var o={id:u.id,nome:$('#u_nome').value.trim(),login:$('#u_login').value.trim(),
+      perfil:$('#u_perfil').value,senha:$('#u_senha').value,ativo:$('#u_ativo').value==='SIM'};
+    if(!o.nome||!o.login){toast('Nome e login são obrigatórios.',true);return;}
+    saveBtn('#u_save');
+    rpc('saveUsuario',STATE.token,o).then(function(r){
+      if(!r.ok){toast(r.erro,true);return;}closeModal();toast('Usuário salvo.');viewUsuarios();
+    });
+  };
+}
+
+/* ============ misc ============ */
+function saveBtn(sel){var b=$(sel);if(b){b.disabled=true;b.innerHTML='<span class="spin"></span> Salvando…';}}
+</script>
+</body>
+</html>
