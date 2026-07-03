@@ -55,6 +55,8 @@ a{color:var(--accent)}
 .btn{border:1px solid transparent;border-radius:var(--r-sm);padding:9px 15px;font-weight:600;font-size:13.5px;
   background:var(--accent);color:#fff;transition:all 0.25s cubic-bezier(0.4, 0, 0.2, 1);display:inline-flex;align-items:center;gap:7px;justify-content:center}
 .btn:active{transform:scale(0.98)}
+.btn:focus-visible,.nav button:focus-visible,.tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.side .nav button:focus-visible{outline:2px solid #fff;outline-offset:-2px}
 .btn:hover{background:var(--accent-hover)}
 .btn:disabled{opacity:.5;cursor:default}
 .btn.block{width:100%;padding:11px}
@@ -115,30 +117,42 @@ input[type=date].sel{padding:7px 10px}
 
 /* KPIs */
 .kpis{grid-template-columns:repeat(auto-fill,minmax(172px,1fr))}
-.kpi{padding:15px 17px}
-.kpi .lab{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+.kpi{padding:15px 17px;position:relative}
+.kpi .kpi-ic{position:absolute;top:14px;right:14px;width:20px;height:20px;color:var(--accent);opacity:.5}
+.kpi .kpi-ic svg{width:100%;height:100%}
+.kpi .lab{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600;
+  padding-right:22px}
 .kpi .val{font-weight:700;font-size:28px;margin-top:5px;line-height:1.1;letter-spacing:-.5px}
 .kpi .val small{font-size:14px;color:var(--muted);font-weight:500}
 .kpi .sub{font-size:12px;color:var(--muted);margin-top:4px}
 .kpi .sub b.up{color:var(--ok-text)}
+.kpi .delta{display:block;font-size:11.5px;font-weight:700;margin-top:7px}
+.kpi .delta.up{color:var(--ok-text)}
+.kpi .delta.down{color:var(--bad)}
+.kpi .delta.flat{color:var(--muted);font-weight:500}
+.kpi .delta small{font-weight:500;color:var(--muted);font-size:11px}
 .kpi.hero{background:var(--accent);border-color:var(--accent)}
+.kpi.hero .kpi-ic{color:#fff;opacity:.55}
 .kpi.hero .lab,.kpi.hero .sub{color:#bcd8db}
 .kpi.hero .val{color:#fff}
+.kpi.hero .delta.up{color:#bdf0c4}
+.kpi.hero .delta.down{color:#ffc4bd}
+.kpi.hero .delta small{color:#bcd8db}
 
 /* barras horizontais */
 .bars{display:flex;flex-direction:column;gap:8px}
 .bar-row{display:grid;grid-template-columns:minmax(120px,42%) 1fr 44px;align-items:center;gap:10px;font-size:12.5px}
 .bar-row .lbl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink-2)}
-.bar-row .num{text-align:right;font-weight:600}
-.bar{height:14px;border-radius:0 4px 4px 0;background:var(--surface-2);overflow:hidden}
+.bar-row .num{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.bar{height:14px;border-radius:0 4px 4px 0;background:var(--surface-2);overflow:hidden;
+  background-image:repeating-linear-gradient(90deg,var(--line) 0,var(--line) 1px,transparent 1px,transparent 25%)}
 .bar>span{display:block;height:100%;background:var(--s1);border-radius:0 4px 4px 0;min-width:2px}
 .bar.alt>span{background:var(--s2)}
 
-/* colunas (série diária) */
-.cols{display:flex;align-items:flex-end;gap:2px;height:130px;padding-top:8px}
-.cols .c{flex:1;background:var(--s1);border-radius:4px 4px 0 0;min-height:2px;position:relative;cursor:default}
-.cols .c:hover{background:var(--accent)}
-.chart-x{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:6px}
+/* gráfico de linha (série diária) */
+.linechart{display:block;overflow:visible}
+.linechart .pt{transition:r .12s}
+.chart-x{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:6px;padding-left:30px}
 .tip{position:fixed;background:var(--ink);color:#fff;font-size:12px;padding:5px 9px;border-radius:6px;
   pointer-events:none;z-index:99;transform:translate(-50%,-130%);white-space:nowrap;display:none}
 
@@ -151,13 +165,15 @@ tr:last-child td{border-bottom:none}
 td.r,th.r{text-align:right}
 .tbl-wrap{overflow:auto;border-radius:var(--r)}
 .tbl-wrap.max{max-height:560px}
+.tbl-wrap:not(:has(table.matrix)) tbody tr:nth-child(even) td{background:var(--surface-2)}
 .rowlink{cursor:pointer;transition:all 0.15s ease-out}
-.rowlink:hover td{background:#f9f7fb}
+.rowlink:hover td{background:var(--lavanda)!important}
 .empty{padding:44px 20px;text-align:center;color:var(--muted)}
 .empty b{display:block;color:var(--ink);margin-bottom:3px;font-size:14px}
 
 /* pills e tags */
-.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:700;white-space:nowrap}
+.pill::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
 .pill.p1,.pill.p2{background:var(--bad-bg);color:#8f2b2b}
 .pill.p3,.pill.p4,.pill.p5{background:var(--warn-bg);color:var(--warn)}
 .pill.pn{background:var(--surface-2);color:var(--ink-2)}
@@ -218,6 +234,9 @@ td.r,th.r{text-align:right}
 .matrix td.tot,.matrix th.tot{text-align:right;font-weight:700;background:var(--surface-2)}
 .matrix tr.foot td{font-weight:700;background:var(--surface-2);border-top:2px solid var(--line)}
 .matrix .rot{max-width:340px}
+.heat-legend{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted)}
+.heat-legend i{width:16px;height:12px;border-radius:3px;display:inline-block}
+.heat-legend small{margin-left:8px;color:var(--muted)}
 
 /* config: listas */
 .cfg-list{display:flex;flex-direction:column}
@@ -234,6 +253,23 @@ td.r,th.r{text-align:right}
   animation:sp .7s linear infinite;margin:0 auto 10px}
 @keyframes sp{to{transform:rotate(360deg)}}
 @keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+/* skeleton loaders */
+.skel{background:linear-gradient(90deg,var(--surface-2) 25%,#e8e7e1 37%,var(--surface-2) 63%);
+  background-size:400% 100%;animation:shimmer 1.4s ease infinite;border-radius:var(--r-sm)}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:0 0}}
+.skel-kpis{grid-template-columns:repeat(auto-fill,minmax(172px,1fr))}
+.skel-kpi{padding:15px 17px;height:92px;display:flex;flex-direction:column;gap:10px;justify-content:center}
+.skel-kpi .skel{height:12px;width:60%}
+.skel-kpi .skel:last-child{height:22px;width:40%}
+.skel-card{height:220px;padding:18px 20px}
+.skel-card .skel{height:100%;width:100%}
+
+/* empty state */
+.empty2{padding:48px 24px;text-align:center;color:var(--muted)}
+.empty2 svg{width:40px;height:40px;stroke:var(--muted);opacity:.55;margin-bottom:10px}
+.empty2 b{display:block;color:var(--ink);margin-bottom:4px;font-size:14px;font-weight:600}
+.empty2 .sub{font-size:12.5px;margin-bottom:14px}
 </style>
 </head>
 <body>
@@ -374,7 +410,7 @@ function renderShell(){
     '<span>'+esc(cfg('hospitalNome')||'Hospital')+'</span></div></div>'+
     '<nav class="nav">'+navs.map(function(n){
       if(n.sect) return '<div class="sect">'+esc(n.sect)+'</div>';
-      return '<button data-v="'+n.id+'">'+ICONS[n.ic]+'<span>'+esc(n.t)+'</span></button>';
+      return '<button data-v="'+n.id+'" aria-label="'+esc(n.t)+'">'+ICONS[n.ic]+'<span>'+esc(n.t)+'</span></button>';
     }).join('')+'</nav>'+
     '<div class="spacer"></div>'+
     '<div class="who"><div class="av">'+esc(ini)+'</div><div class="t2"><div class="nm">'+esc(S.user.nome)+'</div>'+
@@ -387,13 +423,38 @@ function renderShell(){
 
 function go(v){
   S.view=v;
-  $$('.nav button').forEach(function(b){ b.classList.toggle('active',b.dataset.v===v); });
+  $$('.nav button').forEach(function(b){
+    const on=b.dataset.v===v; b.classList.toggle('active',on);
+    if(on) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current');
+  });
   const V={dashboard:vDashboard,censo:vCenso,pacientes:vPacientes,triagem:vTriagem,
     reunioes:vReunioes,consolidado:vConsolidado,config:vConfig};
   (V[v]||vDashboard)();
 }
 
 function loading(){ $('#main').innerHTML='<div class="loading"><div><div class="spin"></div>Carregando…</div></div>'; }
+
+function skeletonKpis(n){
+  n=n||6;
+  let out='<div class="grid kpis skel-kpis">';
+  for(let i=0;i<n;i++) out+='<div class="card skel-kpi"><div class="skel"></div><div class="skel"></div></div>';
+  return out+'</div>';
+}
+function skeletonCards(n){
+  n=n||4;
+  let out='<div class="grid two" style="margin-top:14px">';
+  for(let i=0;i<n;i++) out+='<div class="card skel-card"><div class="skel"></div></div>';
+  return out+'</div>';
+}
+function emptyState(icon,title,sub,ctaHtml){
+  const icons={
+    box:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>',
+    chart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 19V9M10 19V4M16 19v-6M21 19H3"/></svg>',
+    search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>'
+  };
+  return '<div class="empty2">'+(icons[icon]||icons.box)+'<b>'+esc(title)+'</b>'+
+    (sub?'<div class="sub">'+esc(sub)+'</div>':'')+(ctaHtml||'')+'</div>';
+}
 
 function boot(){
   document.getElementById('root').innerHTML='<div class="loading"><div><div class="spin"></div>Carregando…</div></div>';
@@ -404,15 +465,21 @@ function boot(){
 }
 
 /* ========================= MODAL ========================= */
+function _modalEsc(e){ if(e.key==='Escape') closeModal(); }
 function openModal(html,wide){
   closeModal();
   const o=document.createElement('div'); o.className='overlay'; o.id='ovl';
-  o.innerHTML='<div class="modal'+(wide?' wide':'')+'">'+html+'</div>';
+  o.innerHTML='<div class="modal'+(wide?' wide':'')+'" role="dialog" aria-modal="true" tabindex="-1">'+html+'</div>';
   o.addEventListener('mousedown',function(e){ if(e.target===o) closeModal(); });
   document.body.appendChild(o);
+  document.addEventListener('keydown',_modalEsc);
   const x=$('.modal-h .x',o); if(x) x.addEventListener('click',closeModal);
+  setTimeout(function(){
+    const f=$('.modal input,.modal select,.modal textarea,.modal button',o);
+    (f||$('.modal',o)).focus();
+  },0);
 }
-function closeModal(){ const o=$('#ovl'); if(o) o.remove(); }
+function closeModal(){ const o=$('#ovl'); if(o) o.remove(); document.removeEventListener('keydown',_modalEsc); }
 function mHead(t){ return '<div class="modal-h"><h3>'+esc(t)+'</h3><button class="x">✕</button></div>'; }
 
 function chips(name,valores,marcados){
@@ -446,29 +513,50 @@ function vDashboard(){
     '<input type="date" class="sel" id="dh-de" value="'+inicioMes()+'">'+
     '<input type="date" class="sel" id="dh-ate" value="'+hoje()+'">'+
     '<button class="btn sm" id="dh-go">Aplicar</button>'+
-  '</div></div><div id="dh-body"><div class="loading"><div><div class="spin"></div>Carregando…</div></div></div>';
+  '</div></div><div id="dh-body">'+skeletonKpis(9)+skeletonCards(4)+'</div>';
   $('#dh-go').addEventListener('click',loadDash);
   loadDash();
+}
+
+const KPI_ICONS={
+  ativos:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.4 3.4-5 6.5-5s5.7 1.6 6.5 5"/></svg>',
+  atend:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2h-1"/><path d="M9 12h6M9 16h4"/></svg>',
+  proc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V9M10 19V4M16 19v-6M21 19H3"/></svg>',
+  adm:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>',
+  fois:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>',
+  vaa:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>',
+  decan:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>',
+  tri:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a5 5 0 0 1 5 5c0 2-1 3-1 5h-8c0-2-1-3-1-5a5 5 0 0 1 5-5z"/><path d="M9.5 17h5M10.5 20.5h3"/></svg>',
+  reun:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="7" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M2.5 20c.7-3 2.9-4.6 5.5-4.6s4.8 1.6 5.5 4.6"/></svg>'
+};
+
+function deltaHtml(cur,prev){
+  if(prev===null||prev===undefined||!isFinite(prev)) return '';
+  if(prev===0){ if(!cur) return ''; return '<span class="delta up">novo</span>'; }
+  const pct=Math.round((cur-prev)/prev*100);
+  if(pct===0) return '<span class="delta flat">= vs. período anterior</span>';
+  const up=pct>0;
+  return '<span class="delta '+(up?'up':'down')+'">'+(up?'▲':'▼')+' '+Math.abs(pct)+'% <small>vs. período anterior</small></span>';
 }
 
 function loadDash(){
   const f={de:$('#dh-de').value,ate:$('#dh-ate').value,servicoId:$('#dh-serv').value||null};
   gs('dashboard',S.token,f).then(function(r){
-    const k=r.kpis;
+    const k=r.kpis, ant=r.anterior;
     const evo=(k.foisMediaAdmissao!==null)?
       (k.foisMediaAdmissao+' <small>→</small> '+k.foisMediaAlta):'—';
     $('#dh-body').innerHTML=
     '<div class="grid kpis">'+
-      kpi('Pacientes ativos',k.pacientesAtivos,'em acompanhamento agora','hero')+
-      kpi('Atendimentos',k.atendimentos,'no período')+
-      kpi('Procedimentos',k.procedimentos,'no período')+
-      kpi('Admissões',k.admissoesPeriodo,'saídas: '+k.saidasPeriodo)+
-      kpi('FOIS admissão → alta',evo,k.foisEvolucaoN+' pacientes com alta')+
+      kpi('Pacientes ativos',k.pacientesAtivos,'em acompanhamento agora','hero','ativos',ant&&deltaHtml(k.pacientesAtivos,ant.pacientesAtivos))+
+      kpi('Atendimentos',k.atendimentos,'no período','hero','atend',ant&&deltaHtml(k.atendimentos,ant.atendimentos))+
+      kpi('Procedimentos',k.procedimentos,'no período',null,'proc',ant&&deltaHtml(k.procedimentos,ant.procedimentos))+
+      kpi('Admissões',k.admissoesPeriodo,'saídas: '+k.saidasPeriodo,null,'adm',ant&&deltaHtml(k.admissoesPeriodo,ant.admissoesPeriodo))+
+      kpi('FOIS admissão → alta',evo,k.foisEvolucaoN+' pacientes com alta',null,'fois')+
       kpi('Desmame de VAA',(k.tempoMedioDesmame!==null?k.tempoMedioDesmame+' <small>dias</small>':'—'),
-        k.desmamesN+' desmames concluídos')+
-      kpi('Decanulações',k.decanulacaoConcluidas+' <small>/ '+k.decanulacaoProtocolo+'</small>','concluídas / em protocolo')+
-      kpi('Triagens neonatais',k.triagemTotal,k.triagemFalha+' com alteração')+
-      kpi('Reuniões',k.reunioes,k.reunioesParticipantes+' participantes')+
+        k.desmamesN+' desmames concluídos',null,'vaa')+
+      kpi('Decanulações',k.decanulacaoConcluidas+' <small>/ '+k.decanulacaoProtocolo+'</small>','concluídas / em protocolo',null,'decan')+
+      kpi('Triagens neonatais',k.triagemTotal,k.triagemFalha+' com alteração',null,'tri')+
+      kpi('Reuniões',k.reunioes,k.reunioesParticipantes+' participantes',null,'reun')+
     '</div>'+
     '<div class="grid two" style="margin-top:14px">'+
       '<div class="card panel"><h3>Procedimentos por dia</h3>'+colChart(k.serieDias)+'</div>'+
@@ -482,14 +570,16 @@ function loadDash(){
   });
 }
 
-function kpi(lab,val,sub,cls){
-  return '<div class="card kpi '+(cls||'')+'"><div class="lab">'+lab+'</div>'+
-    '<div class="val num">'+val+'</div><div class="sub">'+sub+'</div></div>';
+function kpi(lab,val,sub,cls,icon,delta){
+  return '<div class="card kpi '+(cls||'')+'">'+
+    (icon?'<div class="kpi-ic">'+KPI_ICONS[icon]+'</div>':'')+
+    '<div class="lab">'+lab+'</div>'+
+    '<div class="val num">'+val+'</div><div class="sub">'+sub+'</div>'+(delta||'')+'</div>';
 }
 
 function hbars(arr,alt){
   if(!arr||!arr.length||!arr.some(function(a){return a.total>0;}))
-    return '<div class="empty">Sem dados no período.</div>';
+    return emptyState('chart','Sem dados no período','Ajuste os filtros de data ou serviço.');
   const max=Math.max.apply(null,arr.map(function(a){return a.total;}));
   return '<div class="bars">'+arr.map(function(a){
     const w=max?Math.round(a.total/max*100):0;
@@ -500,12 +590,37 @@ function hbars(arr,alt){
 }
 
 function colChart(serie){
-  if(!serie||!serie.length) return '<div class="empty">Sem dados no período.</div>';
-  const max=Math.max.apply(null,serie.map(function(s){return s.total;}));
-  return '<div class="cols">'+serie.map(function(s){
-    const h=max?Math.max(2,Math.round(s.total/max*100)):2;
-    return '<div class="c" style="height:'+h+'%" data-tip="'+fmtD(s.dia)+' · '+s.total+' procedimento'+(s.total===1?'':'s')+'"></div>';
-  }).join('')+'</div>'+
+  if(!serie||!serie.length) return emptyState('chart','Sem dados no período','Ajuste os filtros de data ou serviço.');
+  const W=560,H=150,padL=30,padB=18,padT=8;
+  const max=Math.max.apply(null,serie.map(function(s){return s.total;}))||1;
+  const n=serie.length;
+  const x=function(i){ return n>1?padL+(i/(n-1))*(W-padL-6):padL+(W-padL-6)/2; };
+  const y=function(v){ return padT+(1-v/max)*(H-padT-padB); };
+  const gridN=3;
+  let grid='';
+  for(let i=0;i<=gridN;i++){
+    const gv=Math.round(max*i/gridN), gy=y(gv);
+    grid+='<line x1="'+padL+'" y1="'+gy+'" x2="'+W+'" y2="'+gy+'" stroke="var(--line-soft)" stroke-width="1"/>'+
+      '<text x="0" y="'+(gy+3)+'" font-size="9" fill="var(--muted)">'+gv+'</text>';
+  }
+  let path='',area='';
+  if(n===1){
+    path='<circle cx="'+x(0)+'" cy="'+y(serie[0].total)+'" r="3.5" fill="var(--s1)"/>';
+  }else{
+    const pts=serie.map(function(s,i){ return x(i)+','+y(s.total); });
+    path='<polyline points="'+pts.join(' ')+'" fill="none" stroke="var(--s1)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>';
+    area='<polygon points="'+x(0)+','+y(0)+' '+pts.join(' ')+' '+x(n-1)+','+y(0)+'" fill="url(#gradS1)" opacity=".5"/>';
+  }
+  const dots=serie.map(function(s,i){
+    return '<circle cx="'+x(i)+'" cy="'+y(s.total)+'" r="9" fill="transparent" data-tip="'+fmtD(s.dia)+' · '+s.total+' procedimento'+(s.total===1?'':'s')+'"/>'+
+      '<circle cx="'+x(i)+'" cy="'+y(s.total)+'" r="2.5" fill="var(--s1)" class="pt"/>';
+  }).join('');
+  return '<svg viewBox="0 0 '+W+' '+H+'" class="linechart" preserveAspectRatio="none" style="width:100%;height:130px">'+
+    '<defs><linearGradient id="gradS1" x1="0" y1="0" x2="0" y2="1">'+
+      '<stop offset="0%" stop-color="var(--s1)" stop-opacity=".35"/><stop offset="100%" stop-color="var(--s1)" stop-opacity="0"/>'+
+    '</linearGradient></defs>'+
+    grid+area+path+dots+
+  '</svg>'+
   '<div class="chart-x"><span>'+fmtD(serie[0].dia)+'</span><span>'+fmtD(serie[serie.length-1].dia)+'</span></div>';
 }
 function bindColTips(){
@@ -552,12 +667,14 @@ function fillSetorSel(){
 }
 
 function loadCenso(){
-  $('#cn-body').innerHTML='<div class="loading"><div><div class="spin"></div>Carregando…</div></div>';
+  $('#cn-body').innerHTML=skeletonCards(1);
   gs('listEpisodios',S.token,{status:CENSO.status||null,servicoId:CENSO.servicoId||null,
     setorId:CENSO.setorId||null,q:CENSO.q||null}).then(function(r){
     if(!r.episodios.length){
-      $('#cn-body').innerHTML='<div class="card"><div class="empty"><b>Nenhum paciente encontrado</b>'+
-        'Ajuste os filtros ou admita um novo paciente.</div></div>';
+      $('#cn-body').innerHTML='<div class="card">'+emptyState('search','Nenhum paciente encontrado',
+        'Ajuste os filtros ou admita um novo paciente.',
+        '<button class="btn sm" id="cn-empty-add">+ Admitir paciente</button>')+'</div>';
+      const b=$('#cn-empty-add'); if(b) b.addEventListener('click',function(){ modalAdmissao(); });
       return;
     }
     $('#cn-body').innerHTML='<div class="card tbl-wrap max"><table><thead><tr>'+
@@ -826,10 +943,12 @@ function vPacientes(){
   loadPacientes('');
 }
 function loadPacientes(q){
-  $('#pc-body').innerHTML='<div class="loading"><div><div class="spin"></div>Carregando…</div></div>';
+  $('#pc-body').innerHTML=skeletonCards(1);
   gs('listPacientes',S.token,q).then(function(r){
     if(!r.pacientes.length){
-      $('#pc-body').innerHTML='<div class="card"><div class="empty"><b>Nenhum paciente</b>Cadastre o primeiro paciente.</div></div>';
+      $('#pc-body').innerHTML='<div class="card">'+emptyState('box','Nenhum paciente','Cadastre o primeiro paciente.',
+        '<button class="btn sm" id="pc-empty-add">+ Novo paciente</button>')+'</div>';
+      const b=$('#pc-empty-add'); if(b) b.addEventListener('click',function(){ modalPaciente(null,function(){ loadPacientes($('#pc-q').value); }); });
       return;
     }
     $('#pc-body').innerHTML='<div class="card tbl-wrap max"><table><thead><tr>'+
@@ -909,12 +1028,13 @@ function resultPill(r){
 }
 
 function loadTriagem(){
-  $('#tr-body').innerHTML='<div class="loading"><div><div class="spin"></div>Carregando…</div></div>';
+  $('#tr-body').innerHTML=skeletonCards(1);
   const f=TRI.tab==='PENDENTES'?{pendentes:true,q:TRI.q||null}:{tipo:TRI.tab,q:TRI.q||null};
   gs('listTriagens',S.token,f).then(function(r){
     if(!r.triagens.length){
-      $('#tr-body').innerHTML='<div class="card"><div class="empty"><b>Nenhum registro</b>'+
-        (TRI.tab==='PENDENTES'?'Nenhuma pendência de reteste ou encaminhamento. 🎉':'Registre o primeiro exame.')+'</div></div>';
+      $('#tr-body').innerHTML='<div class="card">'+emptyState('box',
+        TRI.tab==='PENDENTES'?'Nenhuma pendência':'Nenhum registro',
+        TRI.tab==='PENDENTES'?'Nenhuma pendência de reteste ou encaminhamento no momento.':'Registre o primeiro exame.')+'</div>';
       return;
     }
     const pend=TRI.tab==='PENDENTES';
@@ -1030,10 +1150,13 @@ function vReunioes(){
   loadReunioes();
 }
 function loadReunioes(){
-  $('#re-body').innerHTML='<div class="loading"><div><div class="spin"></div>Carregando…</div></div>';
+  $('#re-body').innerHTML=skeletonCards(1);
   gs('listReunioes',S.token).then(function(r){
     if(!r.reunioes.length){
-      $('#re-body').innerHTML='<div class="card"><div class="empty"><b>Nenhuma reunião registrada</b></div></div>';
+      $('#re-body').innerHTML='<div class="card">'+emptyState('box','Nenhuma reunião registrada',
+        'Registre a primeira reunião de equipe.',
+        '<button class="btn sm" id="re-empty-add">+ Nova reunião</button>')+'</div>';
+      const b=$('#re-empty-add'); if(b) b.addEventListener('click',function(){ modalReuniao(null); });
       return;
     }
     $('#re-body').innerHTML='<div class="card tbl-wrap max"><table><thead><tr>'+
@@ -1102,13 +1225,13 @@ function vConsolidado(){
 }
 
 function loadConsolidado(){
-  $('#cs-body').innerHTML='<div class="loading"><div><div class="spin"></div>Calculando…</div></div>';
+  $('#cs-body').innerHTML=skeletonCards(3);
   gs('consolidado',S.token,{de:$('#cs-de').value,ate:$('#cs-ate').value,
     servicoId:$('#cs-serv').value||null}).then(function(r){
     CONS_DATA=r;
     if(!r.setores.length){
-      $('#cs-body').innerHTML='<div class="card"><div class="empty"><b>Sem dados no período</b>'+
-        'Nenhum paciente com movimento no período selecionado.</div></div>';
+      $('#cs-body').innerHTML='<div class="card">'+emptyState('search','Sem dados no período',
+        'Nenhum paciente com movimento no período selecionado.')+'</div>';
       return;
     }
     const secoes=[
@@ -1120,12 +1243,20 @@ function loadConsolidado(){
       {k:'dietaSaida',t:'Consistência da alta / permanência'}
     ];
     $('#cs-body').innerHTML=
-    '<div class="card panel" style="margin-bottom:14px"><b class="num">'+r.nEpisodios+'</b> pacientes no período '+
-      fmtD(r.periodo.de)+' – '+fmtD(r.periodo.ate)+'</div>'+
+    '<div class="card panel" style="margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">'+
+      '<div><b class="num">'+r.nEpisodios+'</b> pacientes no período '+fmtD(r.periodo.de)+' – '+fmtD(r.periodo.ate)+'</div>'+
+      heatLegend()+
+    '</div>'+
     secoes.map(function(s){ return matrizHTML(s.t,r.setores,r.matrizes[s.k]); }).join('');
   });
 }
 
+const HEAT_STEPS=[14,30,48,66,86];
+function heatLegend(){
+  return '<div class="heat-legend"><span>menos</span>'+
+    HEAT_STEPS.map(function(p){ return '<i style="background:color-mix(in srgb, var(--s1) '+p+'%, #fff)"></i>'; }).join('')+
+    '<span>mais</span><small>escala relativa por tabela</small></div>';
+}
 function matrizHTML(titulo,cols,m){
   const linhas=m.linhas.filter(function(l){ return l.total>0; });
   if(!linhas.length) return '';
@@ -1133,8 +1264,11 @@ function matrizHTML(titulo,cols,m){
     return Math.max.apply(null,l.valores.concat([1])); }));
   const heat=function(v){
     if(!v) return '';
-    const a=Math.min(.34,.06+(v/max)*.28);
-    return ' style="background:rgba(42,120,214,'+a.toFixed(2)+')"';
+    const t=Math.min(1,v/max);
+    const step=Math.min(HEAT_STEPS.length-1,Math.floor(t*HEAT_STEPS.length));
+    const pct=HEAT_STEPS[step];
+    const dark=step>=HEAT_STEPS.length-2;
+    return ' style="background:color-mix(in srgb, var(--s1) '+pct+'%, #fff);color:'+(dark?'#fff':'var(--ink)')+'"';
   };
   const totG=linhas.reduce(function(s,l){return s+l.total;},0);
   return '<div class="card" style="margin-bottom:14px"><div class="panel" style="padding-bottom:0"><h3>'+esc(titulo)+'</h3></div>'+

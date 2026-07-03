@@ -866,6 +866,36 @@ function dashboard(token, filtro) {
 
   const ativos = episodios.filter(function(e) { return e.status === 'ATIVO'; });
 
+  // ------ período anterior (mesma duração, imediatamente antes de "de") p/ deltas ------
+  let anterior = null;
+  if (de && ate) {
+    const dDe = new Date(de + 'T00:00:00'), dAte = new Date(ate + 'T00:00:00');
+    const durMs = dAte - dDe;
+    if (durMs >= 0) {
+      const pad = function(n) { return (n < 10 ? '0' : '') + n; };
+      const fmt = function(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+      const antAte = new Date(dDe); antAte.setDate(antAte.getDate() - 1);
+      const antDe = new Date(antAte.getTime() - durMs);
+      const antDeStr = fmt(antDe), antAteStr = fmt(antAte);
+      const atendAnt = sheetToObjects_('Atendimentos').filter(function(a) {
+        return epIdx[a.episodioId] && dentroPeriodo_(a.data, antDeStr, antAteStr);
+      });
+      let procAnt = 0;
+      atendAnt.forEach(function(a) {
+        const procs = String(a.procedimentos || '').split(' | ').filter(function(x) { return x; });
+        procAnt += Math.max(1, procs.length);
+      });
+      anterior = {
+        pacientesAtivos: episodios.filter(function(e) {
+          return e.status === 'ATIVO' || (e.dataSaida && String(e.dataSaida).slice(0,10) > antAteStr);
+        }).length,
+        atendimentos: atendAnt.length,
+        procedimentos: procAnt,
+        admissoesPeriodo: episodios.filter(function(e) { return dentroPeriodo_(e.dataAdmissao, antDeStr, antAteStr); }).length
+      };
+    }
+  }
+
   // episódios com movimento no período (admissão ou saída dentro dele)
   const epPeriodo = episodios.filter(function(e) {
     return dentroPeriodo_(e.dataAdmissao, de, ate) || dentroPeriodo_(e.dataSaida, de, ate);
@@ -954,7 +984,7 @@ function dashboard(token, filtro) {
     procPorSetor: top(procPorSetor, 14),
     procPorProf: top(procPorProf, 12),
     procPorTipo: top(procPorTipo, 12)
-  }};
+  }, anterior: anterior };
 }
 
 /* ============================ CONSOLIDADO (matrizes por setor) ============================ */
