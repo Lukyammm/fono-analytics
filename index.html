@@ -272,9 +272,9 @@ td.r,th.r{text-align:right}
 
 /* consolidado (matriz com heat) */
 .matrix td.heat{text-align:right;font-variant-numeric:tabular-nums}
-.matrix th.rot{width:34%}
-.matrix th,.matrix td{white-space:nowrap}
-.matrix td.rot{white-space:normal;min-width:180px}
+.matrix th.rot{width:34%; position: sticky; left: 0; z-index: 3; background: inherit;}
+.matrix th,.matrix td{white-space:nowrap; background: inherit;}
+.matrix td.rot{white-space:normal;min-width:180px; position: sticky; left: 0; z-index: 2; background: inherit;}
 .matrix td.tot,.matrix th.tot{text-align:right;font-weight:700;background:var(--surface-2)}
 .matrix tr.foot td{font-weight:700;background:var(--surface-2);border-top:2px solid var(--line)}
 .matrix .rot{max-width:340px}
@@ -367,7 +367,7 @@ td.r,th.r{text-align:right}
   .tools .btn:only-of-type{grid-column:1/-1}
   .sel,.search,.btn{min-height:44px}
   .btn.sm{min-height:44px}
-  .btn.xs{min-height:32px}
+  .btn.xs{min-height:44px}
   input,select,textarea,.sel,.search{font-size:16px}
 
   /* KPIs em 2 colunas */
@@ -437,7 +437,7 @@ td.r,th.r{text-align:right}
 
   /* tabs roláveis */
   .tabs{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
-    margin-left:-16px;margin-right:-16px;padding:0 16px}
+    margin-left:-16px;margin-right:-16px;padding:0 16px;box-shadow: inset -15px 0 10px -15px rgba(0,0,0,0.15);}
   .tabs::-webkit-scrollbar{display:none}
   .tabs button{white-space:nowrap;flex:none;padding:11px 13px}
 
@@ -911,6 +911,11 @@ function bindColTips(){
       tip.style.left=e.clientX+'px'; tip.style.top=e.clientY+'px';
     });
     el.addEventListener('mouseleave',function(){ tip.style.display='none'; });
+    el.addEventListener('touchstart',function(e){
+      tip.style.display='block'; tip.textContent=el.dataset.tip;
+      tip.style.left=e.touches[0].clientX+'px'; tip.style.top=e.touches[0].clientY+'px';
+    }, {passive: true});
+    el.addEventListener('touchend',function(){ tip.style.display='none'; });
   });
 }
 
