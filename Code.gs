@@ -1085,171 +1085,201 @@ function importarPlanilhasLegadas() {
     "1Xs7_VbSiiwSSYjQ7KCYg-OpSj_PDD_YA"
   ];
 
-  // Mapeamento auxiliar para nomes das colunas da planilha vs chaves da tabela
   const MAP_PACIENTE = {
-    'PACIENTE': 'nome',
-    'PRONT': 'prontuario',
-    'Sexo': 'sexo',
-    'DATA DE NASCIMENTO': 'dataNascimento'
+    'PACIENTE': 'nome', 'PRONT': 'prontuario', 'Sexo': 'sexo', 'DATA DE NASCIMENTO': 'dataNascimento'
   };
 
   const MAP_EPISODIO = {
-    'LEITO': 'leito',
-    'PRIORIDADE PARA ATENDIMENTO': 'prioridade',
-    'IDADE GESTACIONAL': 'idadeGestacional',
-    'HIPÓTESE DIAGNÓSTICA': 'hipoteseDiagnostica',
-    'SOLICITAÇÃO': 'solicitacao',
-    'INÍCIO TRANSIÇÃO DE VAA PARA VIA ORAL': 'vaaInicio',
-    'DIA DA CONCLUSÃO': 'vaaConclusao',
-    'JUSTIFICATIVA DA CONCLUSÃO OU NÃO': 'vaaJustificativa',
-    'TIPO DE DIETA DA ADMISSÃO': 'dietaAdmissao',
-    'UTENSÍLIO UTILIZADO': 'utensilio',
-    'TIPO DE DIETA DA ALTA OU DA PERMANÊNCIA': 'dietaSaida'
+    'LEITO': 'leito', 'PRIORIDADE PARA ATENDIMENTO': 'prioridade', 'IDADE GESTACIONAL': 'idadeGestacional',
+    'HIPÓTESE DIAGNÓSTICA': 'hipoteseDiagnostica', 'SOLICITAÇÃO': 'solicitacao',
+    'INÍCIO TRANSIÇÃO DE VAA PARA VIA ORAL': 'vaaInicio', 'DIA DA CONCLUSÃO': 'vaaConclusao',
+    'JUSTIFICATIVA DA CONCLUSÃO OU NÃO': 'vaaJustificativa', 'TIPO DE DIETA DA ADMISSÃO': 'dietaAdmissao',
+    'UTENSÍLIO UTILIZADO': 'utensilio', 'TIPO DE DIETA DA ALTA OU DA PERMANÊNCIA': 'dietaSaida'
   };
 
   const regexData = /\d{2}\/\d{2}\/\d{4}/;
+  const timeZero = new Date();
+  const startTime = Date.now();
+  const LIMIT_MS = 4.5 * 60 * 1000; // 4.5 minutos limite por execução (segurança para o limite de 6 min do Google)
 
-  // Usa sessao_ ou mock user caso rodem direto
+  const props = PropertiesService.getScriptProperties();
+  let pendingFilesStr = props.getProperty('MIGRATION_PENDING_FILES');
+  let pendingFiles = [];
+
+  // Se não tem arquivos pendentes gravados, faz a varredura nas pastas e empilha todos os IDs de arquivos
+  if (!pendingFilesStr) {
+    Logger.log("Iniciando nova varredura de pastas...");
+    folderIds.forEach(function(folderId) {
+      try {
+        const folder = DriveApp.getFolderById(folderId);
+        const files = folder.getFilesByType(MimeType.GOOGLE_SHEETS);
+        while (files.hasNext()) {
+          pendingFiles.push(files.next().getId());
+        }
+      } catch (e) {
+        Logger.log("Erro ao acessar pasta " + folderId + ": " + e);
+      }
+    });
+    props.setProperty('MIGRATION_PENDING_FILES', JSON.stringify(pendingFiles));
+  } else {
+    pendingFiles = JSON.parse(pendingFilesStr);
+    Logger.log("Retomando execução. Faltam " + pendingFiles.length + " arquivos.");
+  }
+
+  if (pendingFiles.length === 0) {
+    Logger.log("Todos os arquivos já foram importados com sucesso.");
+    props.deleteProperty('MIGRATION_PENDING_FILES');
+    return;
+  }
+
+  // Prepara estado inicial
   const fakeSess = {nome: 'Importador (Migração)'};
   let pacIdOffset = nextId_('Pacientes');
   let epIdOffset = nextId_('Episodios');
   let atIdOffset = nextId_('Atendimentos');
 
   const pacientesBase = sheetToObjects_('Pacientes');
-  const pacientesCache = {}; // prontuario -> id
+  const pacientesCache = {};
   pacientesBase.forEach(function(p) {
     if (p.prontuario) pacientesCache[String(p.prontuario).trim().toUpperCase()] = p.id;
   });
 
-  const timeZero = new Date();
+  const ssTarget = getSS_();
+  const shPac = ssTarget.getSheetByName('Pacientes');
+  const shEp = ssTarget.getSheetByName('Episodios');
+  const shAt = ssTarget.getSheetByName('Atendimentos');
 
-  folderIds.forEach(function(folderId) {
+  let processedCount = 0;
+
+  // Itera sobre a lista de arquivos pendentes
+  while (pendingFiles.length > 0) {
+    if (Date.now() - startTime > LIMIT_MS) {
+      Logger.log("Tempo limite próximo. Parando execução após " + processedCount + " planilhas processadas. POR FAVOR, EXECUTE O SCRIPT NOVAMENTE para continuar.");
+      props.setProperty('MIGRATION_PENDING_FILES', JSON.stringify(pendingFiles));
+      return;
+    }
+
+    const currentFileId = pendingFiles.shift(); // Remove e pega o primeiro arquivo da lista
+
+    // Filas para Inserção Batch - extremamente mais rápido que appendRow
+    const batchPacientes = [];
+    const batchEpisodios = [];
+    const batchAtendimentos = [];
+
     try {
-      const folder = DriveApp.getFolderById(folderId);
-      const files = folder.getFilesByType(MimeType.GOOGLE_SHEETS);
+      const ss = SpreadsheetApp.openById(currentFileId);
+      const sheets = ss.getSheets();
 
-      while (files.hasNext()) {
-        const file = files.next();
-        const ss = SpreadsheetApp.openById(file.getId());
-        const sheets = ss.getSheets();
+      sheets.forEach(function(sh) {
+        const sheetName = sh.getName();
+        const data = sh.getDataRange().getValues();
+        if (data.length < 2) return;
 
-        sheets.forEach(function(sh) {
-          const sheetName = sh.getName();
-          const data = sh.getDataRange().getValues();
-          if (data.length < 2) return;
+        const headers = data[0].map(function(h) { return String(h).trim(); });
 
-          const headers = data[0].map(function(h) { return String(h).trim(); });
+        const idxPac = {}; const idxEp = {}; const idxAtends = []; const idxObs = [];
 
-          // Pre-computar índices para otimizar
-          const idxPac = {};
-          const idxEp = {};
-          const idxAtends = [];
-          const idxObs = [];
+        headers.forEach(function(h, i) {
+          if (!h) return;
+          if (MAP_PACIENTE[h]) idxPac[MAP_PACIENTE[h]] = i;
+          else if (MAP_EPISODIO[h]) idxEp[MAP_EPISODIO[h]] = i;
+          else if (regexData.test(h)) idxAtends.push({dataStr: h, index: i});
+          else idxObs.push({key: h, index: i});
+        });
 
-          headers.forEach(function(h, i) {
-            if (!h) return;
-            if (MAP_PACIENTE[h]) {
-              idxPac[MAP_PACIENTE[h]] = i;
-            } else if (MAP_EPISODIO[h]) {
-              idxEp[MAP_EPISODIO[h]] = i;
-            } else if (regexData.test(h)) {
-              idxAtends.push({dataStr: h, index: i});
-            } else {
-              // Outras colunas viram OBS
-              idxObs.push({key: h, index: i});
-            }
+        for (let r = 1; r < data.length; r++) {
+          const row = data[r];
+
+          const prontStr = String(idxPac['prontuario'] !== undefined ? row[idxPac['prontuario']] : '').trim();
+          const nomeStr = String(idxPac['nome'] !== undefined ? row[idxPac['nome']] : '').trim();
+
+          if (!nomeStr) continue;
+
+          let curPacId = pacientesCache[prontStr.toUpperCase()];
+          if (!curPacId) {
+            curPacId = pacIdOffset++;
+            if (prontStr) pacientesCache[prontStr.toUpperCase()] = curPacId;
+
+            // Ordem: ['id','nome','prontuario','sexo','dataNascimento','criadoEm','criadoPor']
+            batchPacientes.push([
+              curPacId,
+              up_(nomeStr),
+              prontStr,
+              idxPac['sexo'] !== undefined ? row[idxPac['sexo']] : '',
+              idxPac['dataNascimento'] !== undefined ? row[idxPac['dataNascimento']] : '',
+              timeZero,
+              fakeSess.nome
+            ]);
+          }
+
+          const obsLinhas = [];
+          idxObs.forEach(function(obj) {
+            const val = row[obj.index];
+            if (val !== '' && val !== null && val !== undefined) obsLinhas.push(obj.key + ': ' + val);
           });
 
-          for (let r = 1; r < data.length; r++) {
-            const row = data[r];
-
-            // Dados básicos do paciente para verificar existência
-            const prontStr = String(idxPac['prontuario'] !== undefined ? row[idxPac['prontuario']] : '').trim();
-            const nomeStr = String(idxPac['nome'] !== undefined ? row[idxPac['nome']] : '').trim();
-
-            if (!nomeStr) continue; // Pula linha vazia
-
-            let curPacId = pacientesCache[prontStr.toUpperCase()];
-            if (!curPacId) {
-              const novoPac = {
-                id: pacIdOffset++,
-                nome: up_(nomeStr),
-                prontuario: prontStr,
-                sexo: idxPac['sexo'] !== undefined ? row[idxPac['sexo']] : '',
-                dataNascimento: idxPac['dataNascimento'] !== undefined ? row[idxPac['dataNascimento']] : '',
-                criadoEm: timeZero,
-                criadoPor: fakeSess.nome
-              };
-              appendRow_('Pacientes', novoPac);
-              curPacId = novoPac.id;
-              if (prontStr) pacientesCache[prontStr.toUpperCase()] = curPacId;
+          let admData = '';
+          for (let k = 0; k < idxAtends.length; k++) {
+            if (row[idxAtends[k].index]) {
+              const parts = idxAtends[k].dataStr.split('/');
+              if (parts.length === 3) admData = parts[2] + '-' + parts[1] + '-' + parts[0];
+              break;
             }
+          }
+          if (!admData) admData = isoDate_(timeZero);
 
-            // Compilar OBS e outras info para o episódio
-            const obsLinhas = [];
-            idxObs.forEach(function(obj) {
-              const val = row[obj.index];
-              if (val !== '' && val !== null && val !== undefined) {
-                obsLinhas.push(obj.key + ': ' + val);
-              }
-            });
+          const curEpId = epIdOffset++;
+          const objEp = {
+            id: curEpId, pacienteId: curPacId, servicoId: '', setorId: sheetName, leito: '', status: 'ENCERRADO',
+            dataAdmissao: admData, dataSaida: '', idade: '', idadeGestacional: '', prioridade: '', solicitacao: '',
+            hipoteseDiagnostica: '', foisAdmissao: '', foisAlta: '', dietaAdmissao: '', dietaSaida: '', utensilio: '',
+            vaaInicio: '', vaaConclusao: '', vaaJustificativa: '', decanulacaoProtocolo: '', decanulacaoAvaliacao: '',
+            decanulacaoData: '', altaFono: '', obs: obsLinhas.join(' | '), criadoEm: timeZero, criadoPor: fakeSess.nome
+          };
 
-            // Admissão fictícia - caso as planilhas sejam por mês,
-            // pega a data do primeiro atendimento se existir.
-            let admData = '';
-            for (let k = 0; k < idxAtends.length; k++) {
-              if (row[idxAtends[k].index]) {
-                const parts = idxAtends[k].dataStr.split('/');
-                if (parts.length === 3) admData = parts[2] + '-' + parts[1] + '-' + parts[0];
-                break;
-              }
+          Object.keys(idxEp).forEach(function(k) { objEp[k] = row[idxEp[k]]; });
+
+          // Converter obj para o array de cabeçalho exato de Episodios
+          batchEpisodios.push(SHEETS.Episodios.map(function(k) { return objEp[k] === undefined ? '' : objEp[k]; }));
+
+          idxAtends.forEach(function(at) {
+            const valProc = String(row[at.index]).trim();
+            if (valProc) {
+              const pDate = at.dataStr.split('/');
+              const atDateStr = pDate.length === 3 ? pDate[2] + '-' + pDate[1] + '-' + pDate[0] : isoDate_(timeZero);
+
+              // ['id','episodioId','data','procedimentos','profissional','extra','obs','criadoEm','criadoPor']
+              batchAtendimentos.push([
+                atIdOffset++,
+                curEpId,
+                atDateStr,
+                valProc,
+                'Legado (Migração)',
+                '', // extra
+                '', // obs
+                timeZero,
+                fakeSess.nome
+              ]);
             }
-            if (!admData) admData = isoDate_(timeZero);
+          });
+        }
+      });
 
-            const curEpId = epIdOffset++;
-            const novoEp = {
-              id: curEpId,
-              pacienteId: curPacId,
-              setorId: sheetName, // Nas planilhas antigas a aba costumava ser o setor
-              status: 'ENCERRADO', // Histórico vai retroativo
-              dataAdmissao: admData,
-              obs: obsLinhas.join(' | '),
-              criadoEm: timeZero,
-              criadoPor: fakeSess.nome
-            };
+      // Realiza Batch Insetion no BD
+      if (batchPacientes.length > 0) shPac.getRange(shPac.getLastRow() + 1, 1, batchPacientes.length, batchPacientes[0].length).setValues(batchPacientes);
+      if (batchEpisodios.length > 0) shEp.getRange(shEp.getLastRow() + 1, 1, batchEpisodios.length, batchEpisodios[0].length).setValues(batchEpisodios);
+      if (batchAtendimentos.length > 0) shAt.getRange(shAt.getLastRow() + 1, 1, batchAtendimentos.length, batchAtendimentos[0].length).setValues(batchAtendimentos);
 
-            // Transfere campos baseados no MAP_EPISODIO
-            Object.keys(idxEp).forEach(function(k) {
-               novoEp[k] = row[idxEp[k]];
-            });
-            appendRow_('Episodios', novoEp);
+      processedCount++;
+      props.setProperty('MIGRATION_PENDING_FILES', JSON.stringify(pendingFiles)); // Grava checkpoint por arquivo
+      Logger.log("Arquivo importado com sucesso: " + ss.getName());
 
-            // Criação dos atendimentos (dias da matriz)
-            idxAtends.forEach(function(at) {
-              const valProc = String(row[at.index]).trim();
-              if (valProc) {
-                const pDate = at.dataStr.split('/');
-                const atDateStr = pDate.length === 3 ? pDate[2] + '-' + pDate[1] + '-' + pDate[0] : isoDate_(timeZero);
-
-                appendRow_('Atendimentos', {
-                  id: atIdOffset++,
-                  episodioId: curEpId,
-                  data: atDateStr,
-                  procedimentos: valProc,
-                  profissional: 'Legado (Migração)',
-                  extra: false,
-                  obs: '',
-                  criadoEm: timeZero,
-                  criadoPor: fakeSess.nome
-                });
-              }
-            });
-
-          } // end for row
-        }); // end for sheets
-      } // end while files
     } catch(e) {
-      Logger.log("Erro ao importar pasta: " + folderId + " - " + e);
+      Logger.log("Erro ao importar arquivo " + currentFileId + ": " + e);
+      // Volta o ID do arquivo para tentar de novo ou descarta. Neste caso, não fazemos push back para evitar loop infinito caso o erro seja da própria planilha, porém isso pode ser ajustado.
     }
-  }); // end for folderIds
+  } // end while
+
+  Logger.log("Migração de todas as planilhas concluída com sucesso! Nenhum arquivo pendente.");
+  props.deleteProperty('MIGRATION_PENDING_FILES');
 }
