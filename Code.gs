@@ -297,8 +297,12 @@ function sheetToObjects_(name) {
 
 function isoDate_(d) {
   // datas puras viram 'YYYY-MM-DD'; timestamps mantêm hora
+  // Usa formatDate para checar a hora no TZ do script, não no TZ do runtime V8
   const tz = Session.getScriptTimeZone();
-  if (d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0)
+  const h = Number(Utilities.formatDate(d, tz, 'H'));
+  const m = Number(Utilities.formatDate(d, tz, 'm'));
+  const s = Number(Utilities.formatDate(d, tz, 's'));
+  if (h === 0 && m === 0 && s === 0)
     return Utilities.formatDate(d, tz, 'yyyy-MM-dd');
   return Utilities.formatDate(d, tz, "yyyy-MM-dd HH:mm");
 }
@@ -342,7 +346,7 @@ function indexById_(arr) {
 
 function withLock_(fn) {
   const lock = LockService.getScriptLock();
-  lock.tryLock(15000);
+  lock.waitLock(15000); // lança exceção se não conseguir o lock em 15 s
   try { return fn(); } finally { lock.releaseLock(); }
 }
 
@@ -511,6 +515,8 @@ function saveUsuario(token, obj) {
     if (obj.id) {
       const u = byId_('Usuarios', obj.id);
       if (!u) return { ok: false, erro: 'Usuário não encontrado.' };
+      if (sess.perfil !== 'ADMIN' && u.perfil === 'ADMIN')
+        return { ok: false, erro: 'Sem permissão para editar contas de administrador.' };
       const patch = { nome: obj.nome, perfil: obj.perfil, ehFono: !!obj.ehFono, ativo: !!obj.ativo };
       if (obj.senha) {
         const salt = Utilities.getUuid();
@@ -604,6 +610,7 @@ function encerrarEpisodio(token, obj) {
   return withLock_(function() {
     const e = byId_('Episodios', obj.id);
     if (!e) return { ok: false, erro: 'Registro não encontrado.' };
+    if (e.status !== 'ATIVO') return { ok: false, erro: 'O episódio já está encerrado.' };
     updateRow_('Episodios', e._row, {
       status: 'ENCERRADO',
       dataSaida: obj.dataSaida || isoDate_(new Date()),
@@ -615,7 +622,7 @@ function encerrarEpisodio(token, obj) {
 }
 
 function reabrirEpisodio(token, id) {
-  sessao_(token);
+  const sess = sessao_(token); exigePerfil_(sess, ['ADMIN', 'COORDENACAO']);
   return withLock_(function() {
     const e = byId_('Episodios', id);
     if (!e) return { ok: false, erro: 'Registro não encontrado.' };
@@ -713,8 +720,10 @@ function registrarAtendimento(token, obj) {
 }
 
 function excluirAtendimento(token, id) {
-  sessao_(token);
+  const sess = sessao_(token); exigePerfil_(sess, ['ADMIN', 'COORDENACAO', 'FONO']);
   return withLock_(function() {
+    const a = byId_('Atendimentos', id);
+    if (!a) return { ok: false, erro: 'Atendimento não encontrado.' };
     deleteRowById_('Atendimentos', id);
     return { ok: true };
   });
@@ -887,6 +896,8 @@ function dashboard(token, filtro) {
       });
       anterior = {
         pacientesAtivos: episodios.filter(function(e) {
+          const admStr = String(e.dataAdmissao || '').slice(0, 10);
+          if (!admStr || admStr > antAteStr) return false; // ainda não havia sido admitido
           return e.status === 'ATIVO' || (e.dataSaida && String(e.dataSaida).slice(0,10) > antAteStr);
         }).length,
         atendimentos: atendAnt.length,
@@ -1138,6 +1149,13 @@ function importarPlanilhasLegadas() {
   let epIdOffset = nextId_('Episodios');
   let atIdOffset = nextId_('Atendimentos');
 
+  // Cache de setores: nome (uppercase) -> id numérico
+  const setoresBase = sheetToObjects_('Setores');
+  const setoresNomeCache = {};
+  setoresBase.forEach(function(s) {
+    if (s.nome) setoresNomeCache[String(s.nome).trim().toUpperCase()] = Number(s.id);
+  });
+
   const pacientesBase = sheetToObjects_('Pacientes');
   const pacientesCache = {};
   pacientesBase.forEach(function(p) {
@@ -1230,7 +1248,9 @@ function importarPlanilhasLegadas() {
 
           const curEpId = epIdOffset++;
           const objEp = {
-            id: curEpId, pacienteId: curPacId, servicoId: '', setorId: sheetName, leito: '', status: 'ENCERRADO',
+            id: curEpId, pacienteId: curPacId, servicoId: '',
+            setorId: setoresNomeCache[sheetName.trim().toUpperCase()] || '',
+            leito: '', status: 'ENCERRADO',
             dataAdmissao: admData, dataSaida: '', idade: '', idadeGestacional: '', prioridade: '', solicitacao: '',
             hipoteseDiagnostica: '', foisAdmissao: '', foisAlta: '', dietaAdmissao: '', dietaSaida: '', utensilio: '',
             vaaInicio: '', vaaConclusao: '', vaaJustificativa: '', decanulacaoProtocolo: '', decanulacaoAvaliacao: '',
