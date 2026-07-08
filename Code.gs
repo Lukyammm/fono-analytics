@@ -262,6 +262,124 @@ function ensureSetup_() {
     senhaInicial: seededAdmin ? APP.adminSenhaInicial : null };
 }
 
+/* ===================================================================
+ * CORREÇÃO TEMPORÁRIA — reparo de esquema legado da planilha
+ * (remover este bloco inteiro, e o item de menu em onOpen(), depois
+ *  de rodar a correção uma vez com sucesso)
+ * =================================================================== */
+
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('🔧 Manutenção')
+    .addItem('Reparar cabeçalhos da planilha (rodar 1x)', 'repararEsquemaLegado')
+    .addToUi();
+}
+
+// Converte datas legadas tipo "2026 quarta-07-01" para Date real.
+function parseDataLegado_(v) {
+  if (!(typeof v === 'string')) return v;
+  const m = v.match(/^(\d{4})\s+\S+-(\d{2})-(\d{2})$/);
+  if (!m) return v;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
+function repararEsquemaLegado() {
+  const ui = SpreadsheetApp.getUi();
+  const relatorio = [];
+
+  // --- Episodios: cabeçalho legado, mas dados já na posição certa ---
+  (function() {
+    const sh = getSheet_('Episodios');
+    const head = SHEETS.Episodios;
+    sh.getRange(1, 1, 1, head.length).setValues([head]).setFontWeight('bold');
+    const last = sh.getLastRow();
+    if (last > 1) {
+      const colAdm = head.indexOf('dataAdmissao') + 1;
+      const colSaida = head.indexOf('dataSaida') + 1;
+      [colAdm, colSaida].forEach(function(col) {
+        const range = sh.getRange(2, col, last - 1, 1);
+        const vals = range.getValues();
+        let changed = false;
+        const fixed = vals.map(function(row) {
+          const nv = parseDataLegado_(row[0]);
+          if (nv !== row[0]) changed = true;
+          return [nv];
+        });
+        if (changed) range.setValues(fixed);
+      });
+    }
+    relatorio.push('Episodios: cabeçalho corrigido.');
+  })();
+
+  // --- Atendimentos: cabeçalho legado + coluna extra 'pacienteId' ---
+  (function() {
+    const sh = getSheet_('Atendimentos');
+    const head = SHEETS.Atendimentos; // 9 colunas
+    sh.getRange(1, 1, 1, head.length).setValues([head]).setFontWeight('bold');
+    if (sh.getLastColumn() > head.length) {
+      sh.getRange(1, head.length + 1, 1, sh.getLastColumn() - head.length).clearContent();
+    }
+    const last = sh.getLastRow();
+    if (last > 1) {
+      const colData = head.indexOf('data') + 1;
+      const range = sh.getRange(2, colData, last - 1, 1);
+      const vals = range.getValues();
+      let changed = false;
+      const fixed = vals.map(function(row) {
+        const nv = parseDataLegado_(row[0]);
+        if (nv !== row[0]) changed = true;
+        return [nv];
+      });
+      if (changed) range.setValues(fixed);
+    }
+    relatorio.push('Atendimentos: cabeçalho corrigido e coluna extra limpa.');
+  })();
+
+  // --- Reunioes: só cabeçalho, sem dados legados a preservar ---
+  (function() {
+    const sh = getSheet_('Reunioes');
+    const head = SHEETS.Reunioes;
+    sh.getRange(1, 1, 1, head.length).setValues([head]).setFontWeight('bold');
+    relatorio.push('Reunioes: cabeçalho corrigido.');
+  })();
+
+  // --- Usuarios: falta a coluna 'ehFono' (não é só rótulo, é estrutural) ---
+  (function() {
+    const sh = getSheet_('Usuarios');
+    const headAtual = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    if (headAtual.indexOf('ehFono') === -1) {
+      sh.insertColumnBefore(7); // antes de 'ativo', que hoje está na col 7
+      sh.getRange(1, 1, 1, SHEETS.Usuarios.length).setValues([SHEETS.Usuarios]).setFontWeight('bold');
+      const last = sh.getLastRow();
+      if (last > 1) {
+        const perfis = sh.getRange(2, 6, last - 1, 1).getValues(); // col 6 = perfil
+        const ehFonoVals = perfis.map(function(r) { return [String(r[0]).toUpperCase() !== 'ADMIN']; });
+        sh.getRange(2, 7, last - 1, 1).setValues(ehFonoVals);
+      }
+      relatorio.push('Usuarios: coluna ehFono inserida e preenchida (perfil ADMIN = false, demais = true).');
+    } else {
+      relatorio.push('Usuarios: coluna ehFono já existia, nada a fazer.');
+    }
+    // Detecta duplicados de id (ex.: dois logins 'admin' com id=1) sem apagar nada.
+    const objs = sheetToObjects_('Usuarios');
+    const porId = {};
+    objs.forEach(function(o) { (porId[o.id] = porId[o.id] || []).push(o); });
+    Object.keys(porId).forEach(function(id) {
+      if (porId[id].length > 1) {
+        relatorio.push('⚠️ ATENÇÃO: id=' + id + ' aparece ' + porId[id].length +
+          ' vezes na aba Usuarios (linhas ' + porId[id].map(function(o){return o._row;}).join(', ') +
+          '). Revise manualmente qual login/senha está em uso antes de apagar a duplicata.');
+      }
+    });
+  })();
+
+  const msg = relatorio.join('\n');
+  Logger.log(msg);
+  ui.alert('Reparo concluído', msg, ui.ButtonSet.OK);
+}
+
+/* ================= FIM DA CORREÇÃO TEMPORÁRIA ================= */
+
 /* ============================ SHEET HELPERS ============================ */
 
 function getSS_() {
