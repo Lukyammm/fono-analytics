@@ -741,7 +741,7 @@ function boot(){
   gs('apiBootstrap',S.token).then(function(r){
     S.user=r.user; S.dados=r.dados;
     renderShell(); go('dashboard');
-  });
+  }).catch(function(){ renderLogin('Falha ao carregar. Tente novamente.'); });
 }
 
 /* ========================= MODAL ========================= */
@@ -1046,9 +1046,11 @@ function modalAdmissao(){
     obj.setorId=Number($('#ad-setor').value); obj.leito=$('#ad-leito').value;
     obj.dataAdmissao=$('#ad-data').value;
     this.disabled=true;
+    const btn=this;
     gs('saveEpisodio',S.token,obj).then(function(r){
       if(r.ok){ toast('Paciente admitido.'); closeModal(); loadCenso(); }
-    });
+      else { toast(r.erro||'Erro ao admitir.'); btn.disabled=false; }
+    }).catch(function(){ btn.disabled=false; });
   });
 }
 
@@ -1188,11 +1190,13 @@ function modalAtendimento(e,tipo){
     const procs=chipsVal('procs');
     if(!procs.length){ toast('Selecione ao menos um procedimento.'); return; }
     this.disabled=true;
+    const btn=this;
     gs('registrarAtendimento',S.token,{episodioId:e.id,data:$('#at-data').value,
       procedimentos:procs,profissional:$('#at-prof').value,
       extra:!!$('#at-extra').value,obs:$('#at-obs').value}).then(function(r){
       if(r.ok){ toast('Atendimento registrado.'); abrirFicha(e.id); }
-    });
+      else { toast(r.erro||'Erro ao registrar.'); btn.disabled=false; }
+    }).catch(function(){ btn.disabled=false; });
   });
 }
 
@@ -1268,10 +1272,12 @@ function modalPaciente(p,cb){
     const nome=$('#np-nome').value.trim(),pront=$('#np-pront').value.trim();
     if(!nome||!pront){ toast('Informe nome e prontuário.'); return; }
     this.disabled=true;
+    const btn=this;
     gs('savePaciente',S.token,{id:p.id,nome:nome,prontuario:pront,
       sexo:$('#np-sexo').value,dataNascimento:$('#np-nasc').value}).then(function(r){
       if(r.ok){ toast('Paciente salvo.'); closeModal(); if(cb) cb(r.id,nome.toUpperCase()); }
-    });
+      else { toast(r.erro||'Erro ao salvar.'); btn.disabled=false; }
+    }).catch(function(){ btn.disabled=false; });
   });
 }
 
@@ -1411,6 +1417,7 @@ function modalTriagem(tipo,t){
     const nome=$('#tg-nome').value.trim();
     if(!nome){ toast('Informe o nome.'); return; }
     this.disabled=true;
+    const btn=this;
     gs('saveTriagem',S.token,{id:t.id,tipo:tipo,nome:nome,prontuario:$('#tg-pront').value,
       sexo:$('#tg-sexo').value,dataNascimento:$('#tg-nasc').value,leito:$('#tg-leito').value,
       dataExame:$('#tg-data').value,resultado:$('#tg-res').value,resultadoBera:g('#tg-bera'),
@@ -1420,7 +1427,8 @@ function modalTriagem(tipo,t){
       fatoresRisco:chipsVal('frisco'),procedimentos:chipsVal('tproc'),
       profissional:$('#tg-prof').value}).then(function(r){
       if(r.ok){ toast('Registro salvo.'); closeModal(); loadTriagem(); }
-    });
+      else { toast(r.erro||'Erro ao salvar.'); btn.disabled=false; }
+    }).catch(function(){ btn.disabled=false; });
   });
   if($('#tg-del')) $('#tg-del').addEventListener('click',function(){
     if(!confirm('Excluir este registro?')) return;
@@ -1481,11 +1489,13 @@ function modalReuniao(x){
   '<button class="btn" id="re-save">Salvar</button></div>');
   $('#re-save').addEventListener('click',function(){
     this.disabled=true;
+    const btn=this;
     gs('saveReuniao',S.token,{id:x.id,data:$('#re-data').value,setor:$('#re-setor').value,
       fonoaudiologo:$('#re-fono').value,participantes:$('#re-part').value,
       pauta:$('#re-pauta').value}).then(function(r){
       if(r.ok){ toast('Reunião salva.'); closeModal(); loadReunioes(); }
-    });
+      else { toast(r.erro||'Erro ao salvar.'); btn.disabled=false; }
+    }).catch(function(){ btn.disabled=false; });
   });
   if($('#re-del')) $('#re-del').addEventListener('click',function(){
     if(!confirm('Excluir esta reunião?')) return;
