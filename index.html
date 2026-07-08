@@ -149,8 +149,22 @@ a{color:var(--accent)}
 .sel:focus,.search:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .search{min-width:210px}
 .filter-wrap{position:relative;display:flex;align-items:center}
-.filter-wrap svg{position:absolute;left:10px;width:14px;height:14px;color:var(--muted);pointer-events:none;flex-shrink:0}
-.filter-wrap .sel{padding-left:32px}
+.filter-wrap svg{position:absolute;left:10px;width:14px;height:14px;color:var(--muted);pointer-events:none;flex-shrink:0;z-index:1;transition:color .18s var(--ease)}
+.filter-wrap .sel,.filter-wrap input[type=date].sel{padding-left:32px}
+/* estado ativo: filtro com valor selecionado fica destacado em accent.
+   Usa background-color (não o shorthand) para não resetar a seta customizada do select. */
+.filter-wrap.on .sel{border-color:var(--accent);background-color:var(--accent-soft);color:var(--accent);font-weight:600}
+.filter-wrap.on svg{color:var(--accent)}
+.filter-wrap.on select.sel{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%230e5f6a' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")}
+/* segmented control de atalhos de período */
+.fgrp{display:inline-flex;align-items:center;background:var(--surface-2);border:1px solid var(--line);
+  border-radius:999px;padding:3px;gap:2px}
+.fgrp .qp{background:transparent;border:0;padding:6px 13px;min-height:30px;border-radius:999px;
+  font-size:12.5px;font-weight:600;color:var(--ink-2);transition:background .18s var(--ease),color .18s var(--ease)}
+.fgrp .qp:hover{background:#fff;color:var(--ink)}
+.fgrp .qp.active{background:var(--accent);color:#fff;box-shadow:0 1px 2px rgba(14,95,106,.28)}
+/* ação empurrada para a direita da barra de filtros (ex: Exportar CSV) */
+.tools .cs-action{margin-left:auto}
 input[type=date].sel{padding:8px 10px}
 
 .card{background:linear-gradient(180deg,#ffffff,#fdfcfb);border:1px solid var(--line);border-radius:var(--r);
@@ -371,12 +385,16 @@ td.r,th.r{text-align:right}
 
   /* filtros e ferramentas em grade */
   .topbar .tools{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);padding:10px;min-height:auto}
-  .filter-wrap{grid-column:1/-1;position:relative}
+  .filter-wrap{grid-column:1/-1;position:relative;display:flex;width:100%}
+  .filter-wrap .sel{width:100%}
   .filter-wrap svg{left:12px}
   .tools select.sel{grid-column:1/-1;width:100%}
   .tools .search{grid-column:1/-1;width:100%;min-width:0}
   .tools .btn{grid-column:1/-1;width:100%}
   .tools .tools-sep{grid-column:1/-1;display:none}
+  .tools .fgrp{grid-column:1/-1;width:100%;justify-content:space-between}
+  .tools .fgrp .qp{flex:1;padding:8px 4px;min-height:38px}
+  .tools .cs-action{grid-column:1/-1;width:100%;margin-left:0}
   .sel,.search,.btn{min-height:44px}
   .btn.sm{min-height:44px}
   .btn.xs{min-height:44px}
@@ -525,6 +543,55 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){
 function fmtD(d){ if(!d) return '—'; const s=String(d).slice(0,10).split('-'); return s.length===3?s[2]+'/'+s[1]+'/'+s[0]:esc(d); }
 function hoje(){ const d=new Date(),p=function(n){return (n<10?'0':'')+n;}; return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
 function inicioMes(){ return hoje().slice(0,8)+'01'; }
+function ymd(d){ const p=function(n){return (n<10?'0':'')+n;}; return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
+function diasAtras(n){ const d=new Date(); d.setDate(d.getDate()-n); return ymd(d); }
+function inicioAno(){ return hoje().slice(0,4)+'-01-01'; }
+/* presets de período: retorna {de,ate} para uma chave */
+function periodoPreset(k){
+  if(k==='mes')  return {de:inicioMes(),ate:hoje()};
+  if(k==='d30')  return {de:diasAtras(29),ate:hoje()};
+  if(k==='d90')  return {de:diasAtras(89),ate:hoje()};
+  if(k==='ano')  return {de:inicioAno(),ate:hoje()};
+  return null;
+}
+/* barra de atalhos de período (segmented control) */
+function quickPeriodsHTML(id){
+  const P=[['mes','Este mês'],['d30','30 dias'],['d90','90 dias'],['ano','Este ano']];
+  return '<div class="fgrp" id="'+id+'">'+P.map(function(p){
+    return '<button type="button" class="qp'+(p[0]==='mes'?' active':'')+'" data-period="'+p[0]+'">'+p[1]+'</button>';
+  }).join('')+'</div>';
+}
+/* liga os atalhos a dois inputs de data + callback; marca o ativo conforme os valores */
+function bindQuickPeriods(grpSel,deSel,ateSel,onChange){
+  const grp=$(grpSel);
+  function syncActive(){
+    const de=$(deSel).value, ate=$(ateSel).value;
+    $$('.qp',grp).forEach(function(b){
+      const p=periodoPreset(b.dataset.period);
+      b.classList.toggle('active', !!p && p.de===de && p.ate===ate);
+    });
+  }
+  $$('.qp',grp).forEach(function(b){
+    b.addEventListener('click',function(){
+      const p=periodoPreset(b.dataset.period); if(!p) return;
+      $(deSel).value=p.de; $(ateSel).value=p.ate;
+      syncActive(); markFilters(); onChange();
+    });
+  });
+  return syncActive;
+}
+/* marca visualmente (.on) os selects que estão filtrando (valor != "Todos").
+   Datas ficam neutras — sempre têm valor, acender seria ruído. */
+function markFilters(scope){
+  $$('.filter-wrap',scope||document).forEach(function(w){
+    const sel=w.querySelector('select');
+    if(!sel) return; // pula wraps de data
+    w.classList.toggle('on',!!sel.value);
+  });
+}
+/* debounce simples para agrupar mudanças rápidas em uma única chamada */
+function debounce(fn,ms){ let t; return function(){ const a=arguments,c=this;
+  clearTimeout(t); t=setTimeout(function(){ fn.apply(c,a); },ms||350); }; }
 function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(function(){t.classList.remove('show');},2800); }
 
 /* dados de referência */
@@ -801,6 +868,8 @@ function vDashboard(){
   '<div class="topbar">'+
   '<div class="topbar-title"><h2>Dashboard</h2><div class="sub">'+esc(cfg('servicoLabel'))+' · '+esc(cfg('hospitalNome'))+'</div></div>'+
   '<div class="tools">'+
+    quickPeriodsHTML('dh-qp')+
+    '<div class="tools-sep"></div>'+
     '<div class="filter-wrap">'+
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 8h1m4 0h1M9 12h1m4 0h1M9 16h1m4 0h1"/></svg>'+
       '<select class="sel" id="dh-serv"><option value="">Todos os serviços</option>'+
@@ -814,10 +883,12 @@ function vDashboard(){
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>'+
       '<input type="date" class="sel" id="dh-ate" value="'+hoje()+'">'+
     '</div>'+
-    '<div class="tools-sep"></div>'+
-    '<button class="btn" id="dh-go">Aplicar filtros</button>'+
   '</div></div><div id="dh-body">'+skeletonKpis(9)+skeletonCards(4)+'</div>';
-  $('#dh-go').addEventListener('click',loadDash);
+  const applyDash=debounce(function(){ markFilters(); loadDash(); },350);
+  const syncDash=bindQuickPeriods('#dh-qp','#dh-de','#dh-ate',function(){ loadDash(); });
+  $('#dh-serv').addEventListener('change',function(){ markFilters(); loadDash(); });
+  $('#dh-de').addEventListener('change',function(){ syncDash(); applyDash(); });
+  $('#dh-ate').addEventListener('change',function(){ syncDash(); applyDash(); });
   loadDash();
 }
 
@@ -970,10 +1041,11 @@ function vCenso(){
     '<button class="btn" id="cn-add">+ Admitir paciente</button>'+
   '</div></div><div id="cn-body"></div>';
   fillSetorSel();
-  $('#cn-serv').addEventListener('change',function(){ CENSO.servicoId=this.value; CENSO.setorId=''; fillSetorSel(); loadCenso(); });
-  $('#cn-setor').addEventListener('change',function(){ CENSO.setorId=this.value; loadCenso(); });
-  $('#cn-status').addEventListener('change',function(){ CENSO.status=this.value; loadCenso(); });
+  $('#cn-serv').addEventListener('change',function(){ CENSO.servicoId=this.value; CENSO.setorId=''; fillSetorSel(); markFilters(); loadCenso(); });
+  $('#cn-setor').addEventListener('change',function(){ CENSO.setorId=this.value; markFilters(); loadCenso(); });
+  $('#cn-status').addEventListener('change',function(){ CENSO.status=this.value; markFilters(); loadCenso(); });
   $('#cn-status').value=CENSO.status;
+  markFilters();
   let t; $('#cn-q').addEventListener('input',function(){ clearTimeout(t); const v=this.value;
     t=setTimeout(function(){ CENSO.q=v; loadCenso(); },350); });
   $('#cn-add').addEventListener('click',function(){ modalAdmissao(); });
@@ -1557,6 +1629,8 @@ function vConsolidado(){
   '<div class="topbar-title"><h2>Consolidado</h2>'+
   '<div class="sub">Perfil epidemiológico por setor — equivalente à aba CONSOLIDADO das planilhas</div></div>'+
   '<div class="tools">'+
+    quickPeriodsHTML('cs-qp')+
+    '<div class="tools-sep"></div>'+
     '<div class="filter-wrap">'+
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 8h1m4 0h1M9 12h1m4 0h1M9 16h1m4 0h1"/></svg>'+
       '<select class="sel" id="cs-serv"><option value="">Todos os serviços</option>'+
@@ -1570,11 +1644,15 @@ function vConsolidado(){
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>'+
       '<input type="date" class="sel" id="cs-ate" value="'+hoje()+'">'+
     '</div>'+
-    '<div class="tools-sep"></div>'+
-    '<button class="btn" id="cs-go">Aplicar filtros</button>'+
-    '<button class="btn ghost" id="cs-csv">Exportar CSV</button>'+
+    '<button class="btn ghost cs-action" id="cs-csv">'+
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'+
+      'Exportar CSV</button>'+
   '</div></div><div id="cs-body"></div>';
-  $('#cs-go').addEventListener('click',loadConsolidado);
+  const applyCons=debounce(function(){ markFilters(); loadConsolidado(); },350);
+  const syncCons=bindQuickPeriods('#cs-qp','#cs-de','#cs-ate',function(){ loadConsolidado(); });
+  $('#cs-serv').addEventListener('change',function(){ markFilters(); loadConsolidado(); });
+  $('#cs-de').addEventListener('change',function(){ syncCons(); applyCons(); });
+  $('#cs-ate').addEventListener('change',function(){ syncCons(); applyCons(); });
   $('#cs-csv').addEventListener('click',exportCSV);
   loadConsolidado();
 }
