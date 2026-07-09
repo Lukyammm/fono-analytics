@@ -254,6 +254,7 @@ function ensureSetup_() {
     });
     if (rows.length) {
       getSheet_('Listas').getRange(2, 1, rows.length, 6).setValues(rows);
+      invalidateSheetCache_('Listas');
     }
   }
 
@@ -396,10 +397,18 @@ function getSheet_(name) {
   return sh;
 }
 
+/* cache em memória, válido apenas durante a execução atual (uma chamada RPC do cliente).
+   Evita reler a mesma aba várias vezes dentro de uma única requisição — cada leitura de
+   planilha é uma chamada de rede, e funções como dashboard()/consolidado() combinam dados
+   de várias abas, algumas mais de uma vez. Invalidado em toda escrita (ver appendRow_/
+   updateRow_/deleteRowById_) para nunca devolver dado desatualizado após um save. */
+let _sheetCache_ = {};
+
 function sheetToObjects_(name) {
+  if (_sheetCache_[name]) return _sheetCache_[name];
   const sh = getSheet_(name);
   const values = sh.getDataRange().getValues();
-  if (values.length < 2) return [];
+  if (values.length < 2) { _sheetCache_[name] = []; return []; }
   const head = values[0];
   const out = [];
   for (let r = 1; r < values.length; r++) {
@@ -410,7 +419,12 @@ function sheetToObjects_(name) {
     o._row = r + 1;
     out.push(o);
   }
+  _sheetCache_[name] = out;
   return out;
+}
+
+function invalidateSheetCache_(name) {
+  delete _sheetCache_[name];
 }
 
 function isoDate_(d) {
@@ -435,6 +449,7 @@ function appendRow_(name, obj) {
   const sh = getSheet_(name);
   const head = SHEETS[name];
   sh.appendRow(head.map(function(h) { return obj[h] === undefined ? '' : obj[h]; }));
+  invalidateSheetCache_(name);
   return obj;
 }
 
@@ -444,6 +459,7 @@ function updateRow_(name, rowNumber, obj) {
   const cur = sh.getRange(rowNumber, 1, 1, head.length).getValues()[0];
   const row = head.map(function(h, i) { return obj[h] === undefined ? cur[i] : obj[h]; });
   sh.getRange(rowNumber, 1, 1, head.length).setValues([row]);
+  invalidateSheetCache_(name);
   return obj;
 }
 
@@ -451,6 +467,7 @@ function deleteRowById_(name, id) {
   const o = byId_(name, id);
   if (!o) return false;
   getSheet_(name).deleteRow(o._row);
+  invalidateSheetCache_(name);
   return true;
 }
 
