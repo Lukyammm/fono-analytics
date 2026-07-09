@@ -561,6 +561,44 @@ function swrGs(fn,args,view,render){
   });
 }
 
+/* ---- Pré-carregamento em segundo plano ----
+   Depois do login a tela inicial (Dashboard) já carrega; em seguida aquecemos o
+   VIEWCACHE das demais telas, uma de cada vez e em ociosidade, para que o PRIMEIRO
+   clique em cada menu também seja instantâneo. Roda uma vez por sessão, nunca bloqueia
+   a interface e é silencioso — uma falha de prefetch jamais incomoda o usuário. */
+let _prefetched=false;
+function bgFetch(fn,args){
+  const key=fn+'::'+JSON.stringify(args);
+  if(Object.prototype.hasOwnProperty.call(VIEWCACHE,key)) return Promise.resolve();
+  return new Promise(function(res){
+    const runner=google.script.run
+      .withSuccessHandler(function(r){ VIEWCACHE[key]=r; res(); })
+      .withFailureHandler(function(){ res(); });   // silencioso de propósito
+    runner[fn].apply(runner,args);
+  });
+}
+function prefetchViews(){
+  if(_prefetched) return; _prefetched=true;
+  // IMPORTANTE: cada job precisa gerar a MESMA chave de cache que o loader da tela usa
+  // (mesma função, mesmos args, mesma ordem de propriedades). Ver loadCenso/loadTriagem/etc.
+  const jobs=[
+    ['listEpisodios',[S.token,{status:CENSO.status||null,servicoId:CENSO.servicoId||null,setorId:CENSO.setorId||null,q:CENSO.q||null}]],
+    ['listPacientes',[S.token,'']],
+    ['listTriagens',[S.token,{tipo:TRI.tab,q:TRI.q||null}]],
+    ['listReunioes',[S.token]],
+    ['consolidado',[S.token,{de:inicioMes(),ate:hoje(),servicoId:null}]]
+  ];
+  const idle=window.requestIdleCallback||function(f){return setTimeout(f,300);};
+  let i=0;
+  function next(){
+    if(i>=jobs.length) return;
+    const j=jobs[i++];
+    bgFetch(j[0],j[1]).then(function(){ idle(next); });   // sequencial: nunca 5 chamadas de uma vez
+  }
+  // atraso inicial para o Dashboard terminar de carregar antes de começarmos a aquecer o resto
+  setTimeout(function(){ idle(next); },1200);
+}
+
 const $ = function(s,el){ return (el||document).querySelector(s); };
 const $$ = function(s,el){ return Array.prototype.slice.call((el||document).querySelectorAll(s)); };
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){
@@ -844,7 +882,7 @@ function boot(){
   document.getElementById('root').innerHTML='<div class="loading"><div><div class="spin"></div>Carregando…</div></div>';
   gs('apiBootstrap',S.token).then(function(r){
     S.user=r.user; S.dados=r.dados;
-    renderShell(); go('dashboard');
+    renderShell(); go('dashboard'); prefetchViews();
   }).catch(function(){ renderLogin('Falha ao carregar. Tente novamente.'); });
 }
 
@@ -2030,7 +2068,7 @@ function modalUsuario(u){
   if(tk){
     S.token=tk;
     gs('apiBootstrap',tk).then(function(r){
-      S.user=r.user; S.dados=r.dados; renderShell(); go('dashboard');
+      S.user=r.user; S.dados=r.dados; renderShell(); go('dashboard'); prefetchViews();
     }).catch(function(){ renderLogin(); });
   } else renderLogin();
 })();
