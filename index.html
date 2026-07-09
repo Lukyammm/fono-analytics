@@ -518,11 +518,20 @@ td.r,th.r{text-align:right}
 /* ========================= ESTADO / RPC ========================= */
 const S = { token:null, user:null, dados:null, view:'dashboard' };
 
+/* funções de leitura (não alteram a planilha). Qualquer chamada FORA desta lista
+   é tratada como escrita e limpa o cache de views (VIEWCACHE) ao concluir. */
+const READONLY_FN = {dashboard:1,listEpisodios:1,listPacientes:1,listTriagens:1,
+  listReunioes:1,consolidado:1,getFicha:1,listUsuarios:1,apiBootstrap:1,login:1,logout:1};
+
 function gs(fn){
   const args = Array.prototype.slice.call(arguments,1);
   return new Promise(function(res,rej){
     const runner = google.script.run
-      .withSuccessHandler(res)
+      .withSuccessHandler(function(r){
+        // toda escrita bem-sucedida invalida os dados em cache das telas
+        if(!READONLY_FN[fn]) VIEWCACHE={};
+        res(r);
+      })
       .withFailureHandler(function(e){
         const msg = String((e&&e.message)||e);
         if (msg.indexOf('SESSAO_EXPIRADA')>=0){ toast('Sessão expirada. Entre novamente.'); doLogout(true); }
@@ -531,6 +540,24 @@ function gs(fn){
         rej(e);
       });
     runner[fn].apply(runner,args);
+  });
+}
+
+/* ---- Stale-While-Revalidate p/ navegação instantânea entre telas ----
+   Cada google.script.run é uma ida ao servidor (1–3 s). Ao revisitar uma tela já
+   carregada, mostramos o último resultado do cache na hora e revalidamos em segundo
+   plano — só a 1ª visita (ou após uma escrita) espera o servidor.
+   - fn/args: mesma assinatura de gs()
+   - view: tela esperada; se o usuário navegar para outra antes da resposta, o render é descartado
+   - render: callback que desenha o resultado (idêntico ao antigo .then) */
+let VIEWCACHE={};
+function swrGs(fn,args,view,render){
+  const key=fn+'::'+JSON.stringify(args);
+  const hit=Object.prototype.hasOwnProperty.call(VIEWCACHE,key);
+  if(hit) render(VIEWCACHE[key]);              // instantâneo, do cache
+  gs.apply(null,[fn].concat(args)).then(function(r){
+    VIEWCACHE[key]=r;
+    if(S.view===view) render(r);               // revalida (descarta se já saiu da tela)
   });
 }
 
@@ -913,7 +940,7 @@ function deltaHtml(cur,prev){
 
 function loadDash(){
   const f={de:$('#dh-de').value,ate:$('#dh-ate').value,servicoId:$('#dh-serv').value||null};
-  gs('dashboard',S.token,f).then(function(r){
+  swrGs('dashboard',[S.token,f],'dashboard',function(r){
     const k=r.kpis, ant=r.anterior;
     const evo=(k.foisMediaAdmissao!==null)?
       (k.foisMediaAdmissao+' <small>→</small> '+k.foisMediaAlta):'—';
@@ -1057,8 +1084,8 @@ function fillSetorSel(){
 
 function loadCenso(){
   $('#cn-body').innerHTML=skeletonCards(1);
-  gs('listEpisodios',S.token,{status:CENSO.status||null,servicoId:CENSO.servicoId||null,
-    setorId:CENSO.setorId||null,q:CENSO.q||null}).then(function(r){
+  swrGs('listEpisodios',[S.token,{status:CENSO.status||null,servicoId:CENSO.servicoId||null,
+    setorId:CENSO.setorId||null,q:CENSO.q||null}],'censo',function(r){
     if(!r.episodios.length){
       $('#cn-body').innerHTML='<div class="card">'+emptyState('search','Nenhum paciente encontrado',
         'Ajuste os filtros ou admita um novo paciente.',
@@ -1342,7 +1369,7 @@ function vPacientes(){
 }
 function loadPacientes(q){
   $('#pc-body').innerHTML=skeletonCards(1);
-  gs('listPacientes',S.token,q).then(function(r){
+  swrGs('listPacientes',[S.token,q],'pacientes',function(r){
     if(!r.pacientes.length){
       $('#pc-body').innerHTML='<div class="card">'+emptyState('box','Nenhum paciente','Cadastre o primeiro paciente.',
         '<button class="btn sm" id="pc-empty-add">+ Novo paciente</button>')+'</div>';
@@ -1435,7 +1462,7 @@ function resultPill(r){
 function loadTriagem(){
   $('#tr-body').innerHTML=skeletonCards(1);
   const f=TRI.tab==='PENDENTES'?{pendentes:true,q:TRI.q||null}:{tipo:TRI.tab,q:TRI.q||null};
-  gs('listTriagens',S.token,f).then(function(r){
+  swrGs('listTriagens',[S.token,f],'triagem',function(r){
     if(!r.triagens.length){
       $('#tr-body').innerHTML='<div class="card">'+emptyState('box',
         TRI.tab==='PENDENTES'?'Nenhuma pendência':'Nenhum registro',
@@ -1562,7 +1589,7 @@ function vReunioes(){
 }
 function loadReunioes(){
   $('#re-body').innerHTML=skeletonCards(1);
-  gs('listReunioes',S.token).then(function(r){
+  swrGs('listReunioes',[S.token],'reunioes',function(r){
     if(!r.reunioes.length){
       $('#re-body').innerHTML='<div class="card">'+emptyState('box','Nenhuma reunião registrada',
         'Registre a primeira reunião de equipe.',
@@ -1657,8 +1684,8 @@ function vConsolidado(){
 
 function loadConsolidado(){
   $('#cs-body').innerHTML=skeletonCards(3);
-  gs('consolidado',S.token,{de:$('#cs-de').value,ate:$('#cs-ate').value,
-    servicoId:$('#cs-serv').value||null}).then(function(r){
+  swrGs('consolidado',[S.token,{de:$('#cs-de').value,ate:$('#cs-ate').value,
+    servicoId:$('#cs-serv').value||null}],'consolidado',function(r){
     CONS_DATA=r;
     if(!r.setores.length){
       $('#cs-body').innerHTML='<div class="card">'+emptyState('search','Sem dados no período',
