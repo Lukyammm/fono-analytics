@@ -938,14 +938,29 @@ function listEpisodios(token, filtro) {
     if (String(a.data) > atdPorEp[k].ultima) atdPorEp[k].ultima = String(a.data);
   });
 
-  let lista = sheetToObjects_('Episodios');
-  if (filtro.status) lista = lista.filter(function(e) { return e.status === filtro.status; });
-  if (filtro.servicoId) lista = lista.filter(function(e) {
-    return servicoDe_(e, stOf(e.setorId)) === Number(filtro.servicoId); });
-  if (filtro.setorId) lista = lista.filter(function(e) {
-    const s = stOf(e.setorId); return s && Number(s.id) === Number(filtro.setorId); });
+  const q = filtro.q ? String(filtro.q).toLowerCase() : null;
+  const servicoIdNum = filtro.servicoId ? Number(filtro.servicoId) : null;
+  const setorIdNum = filtro.setorId ? Number(filtro.setorId) : null;
 
-  let linhas = lista.map(function(e) {
+  let lista = sheetToObjects_('Episodios').filter(function(e) {
+    if (filtro.status && e.status !== filtro.status) return false;
+
+    const st = stOf(e.setorId);
+    if (setorIdNum && (!st || Number(st.id) !== setorIdNum)) return false;
+    if (servicoIdNum && servicoDe_(e, st) !== servicoIdNum) return false;
+
+    if (q) {
+      const p = pacientes[e.pacienteId] || {};
+      const nome = String(p.nome || '').toLowerCase();
+      const prontuario = String(p.prontuario || '').toLowerCase();
+      const leito = String(e.leito || '').toLowerCase();
+      if (nome.indexOf(q) < 0 && prontuario.indexOf(q) < 0 && leito.indexOf(q) < 0) return false;
+    }
+
+    return true;
+  });
+
+  const linhas = lista.map(function(e) {
     const p = pacientes[e.pacienteId] || {};
     const at = atdPorEp[Number(e.id)] || { n: 0, ultima: '' };
     const st = stOf(e.setorId);
@@ -963,15 +978,6 @@ function listEpisodios(token, filtro) {
       nAtendimentos: at.n, ultimoAtendimento: at.ultima
     };
   });
-
-  if (filtro.q) {
-    const q = String(filtro.q).toLowerCase();
-    linhas = linhas.filter(function(l) {
-      return String(l.nome).toLowerCase().indexOf(q) >= 0 ||
-             String(l.prontuario).toLowerCase().indexOf(q) >= 0 ||
-             String(l.leito || '').toLowerCase().indexOf(q) >= 0;
-    });
-  }
 
   linhas.sort(function(a, b) {
     const pa = prioNum_(a.prioridade), pb = prioNum_(b.prioridade);
@@ -1070,34 +1076,43 @@ function excluirTriagem(token, id) {
 function listTriagens(token, filtro) {
   sessao_(token);
   filtro = filtro || {};
-  let lista = sheetToObjects_('Triagens');
-  if (filtro.tipo) lista = lista.filter(function(t) { return t.tipo === filtro.tipo; });
-  if (filtro.q) {
-    const q = String(filtro.q).toLowerCase();
-    lista = lista.filter(function(t) {
-      return String(t.nome).toLowerCase().indexOf(q) >= 0 ||
-             String(t.prontuario).toLowerCase().indexOf(q) >= 0;
-    });
-  }
+  const q = filtro.q ? String(filtro.q).toLowerCase() : null;
+
+  // Build return map once if needed (used by pendentes filter)
+  const retornos = {};
   if (filtro.pendentes) {
-    // encaminhados para reteste/BERA que ainda não têm registro de retorno com o
-    // mesmo prontuário — registros SEM prontuário nunca são baixados por engano
-    const retornos = {};
-    sheetToObjects_('Triagens').forEach(function(t) {
+    const allTriagens = sheetToObjects_('Triagens');
+    allTriagens.forEach(function(t) {
       const tipo = String(t.tipo || '');
       const pront = String(t.prontuario || '').trim();
       if (tipo.indexOf('RETORNO_') === 0 && pront)
         retornos[pront + '::' + tipo.replace('RETORNO_', '')] = true;
     });
-    lista = lista.filter(function(t) {
+  }
+
+  const lista = sheetToObjects_('Triagens').filter(function(t) {
+    if (filtro.tipo && t.tipo !== filtro.tipo) return false;
+
+    if (q) {
+      const nome = String(t.nome || '').toLowerCase();
+      const prontuario = String(t.prontuario || '').toLowerCase();
+      if (nome.indexOf(q) < 0 && prontuario.indexOf(q) < 0) return false;
+    }
+
+    if (filtro.pendentes) {
       const tipo = String(t.tipo || '');
       if (tipo.indexOf('RETORNO') === 0) return false;
-      const enc = String(t.encReteste).toUpperCase() === 'SIM' || String(t.encBera).toUpperCase() === 'SIM' ||
-                  String(t.encFrenotomia).toUpperCase() === 'SIM';
+      const encReteste = String(t.encReteste || '').toUpperCase() === 'SIM';
+      const encBera = String(t.encBera || '').toUpperCase() === 'SIM';
+      const encFrenotomia = String(t.encFrenotomia || '').toUpperCase() === 'SIM';
+      if (!encReteste && !encBera && !encFrenotomia) return false;
       const pront = String(t.prontuario || '').trim();
-      return enc && !(pront && retornos[pront + '::' + tipo]);
-    });
-  }
+      if (pront && retornos[pront + '::' + tipo]) return false;
+    }
+
+    return true;
+  });
+
   lista.sort(function(a, b) { return String(b.dataExame).localeCompare(String(a.dataExame)); });
   return { ok: true, triagens: lista.slice(0, 400) };
 }
