@@ -949,6 +949,7 @@ function openSheet(){ const s=$('#msheet'); if(s){ s.classList.add('open'); docu
 function closeSheet(){ const s=$('#msheet'); if(s){ s.classList.remove('open'); document.body.classList.remove('no-scroll'); } }
 
 function go(v){
+  if(v===S.view){ closeSheet(); return; } // já está na tela; evita recriar filtros do usuário
   S.view=v;
   closeSheet();
   if(S.dados) applyBrand(cfg('corPrimaria')); // descarta pré-visualização de cor não salva
@@ -1052,8 +1053,11 @@ function chipsVal(name,el){
 }
 
 /* ========================= DASHBOARD ========================= */
+const DASH={de:null,ate:null,servicoId:''};
 function vDashboard(){
   const svs=servicos();
+  if(DASH.de===null) DASH.de=inicioMes();   // só usa o padrão (mês atual) na primeira vez
+  if(DASH.ate===null) DASH.ate=hoje();
   $('#main').innerHTML=
   '<div class="topbar">'+
   '<div class="topbar-title"><h2>Dashboard</h2><div class="sub">'+esc(cfg('servicoLabel'))+' · '+esc(cfg('hospitalNome'))+'</div></div>'+
@@ -1063,22 +1067,23 @@ function vDashboard(){
     '<div class="filter-wrap">'+
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 8h1m4 0h1M9 12h1m4 0h1M9 16h1m4 0h1"/></svg>'+
       '<select class="sel" id="dh-serv"><option value="">Todos os serviços</option>'+
-        svs.map(function(s){return '<option value="'+s.id+'">'+esc(s.nome)+'</option>';}).join('')+'</select>'+
+        svs.map(function(s){return '<option value="'+s.id+'"'+(s.id===DASH.servicoId?' selected':'')+'>'+esc(s.nome)+'</option>';}).join('')+'</select>'+
     '</div>'+
     '<div class="filter-wrap">'+
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>'+
-      '<input type="date" class="sel" id="dh-de" value="'+inicioMes()+'">'+
+      '<input type="date" class="sel" id="dh-de" value="'+DASH.de+'">'+
     '</div>'+
     '<div class="filter-wrap">'+
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>'+
-      '<input type="date" class="sel" id="dh-ate" value="'+hoje()+'">'+
+      '<input type="date" class="sel" id="dh-ate" value="'+DASH.ate+'">'+
     '</div>'+
   '</div></div><div id="dh-body">'+skeletonKpis(9)+skeletonCards(4)+'</div>';
   const applyDash=debounce(function(){ markFilters(); loadDash(); },350);
   const syncDash=bindQuickPeriods('#dh-qp','#dh-de','#dh-ate',function(){ loadDash(); });
-  $('#dh-serv').addEventListener('change',function(){ markFilters(); loadDash(); });
-  $('#dh-de').addEventListener('change',function(){ syncDash(); applyDash(); });
-  $('#dh-ate').addEventListener('change',function(){ syncDash(); applyDash(); });
+  syncDash(); markFilters();
+  $('#dh-serv').addEventListener('change',function(){ DASH.servicoId=$('#dh-serv').value; markFilters(); loadDash(); });
+  $('#dh-de').addEventListener('change',function(){ DASH.de=$('#dh-de').value; syncDash(); applyDash(); });
+  $('#dh-ate').addEventListener('change',function(){ DASH.ate=$('#dh-ate').value; syncDash(); applyDash(); });
   loadDash();
 }
 
@@ -1812,8 +1817,11 @@ function modalReuniao(x){
 
 /* ========================= CONSOLIDADO ========================= */
 let CONS_DATA=null;
+const CONS={de:null,ate:null,servicoId:''};
 function vConsolidado(){
   const svs=servicos();
+  if(CONS.de===null) CONS.de=inicioMes();   // só usa o padrão (mês atual) na primeira vez
+  if(CONS.ate===null) CONS.ate=hoje();
   $('#main').innerHTML=
   '<div class="topbar">'+
   '<div class="topbar-title"><h2>Consolidado</h2>'+
@@ -1824,15 +1832,15 @@ function vConsolidado(){
     '<div class="filter-wrap">'+
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 8h1m4 0h1M9 12h1m4 0h1M9 16h1m4 0h1"/></svg>'+
       '<select class="sel" id="cs-serv"><option value="">Todos os serviços</option>'+
-        svs.map(function(s){return '<option value="'+s.id+'">'+esc(s.nome)+'</option>';}).join('')+'</select>'+
+        svs.map(function(s){return '<option value="'+s.id+'"'+(s.id===CONS.servicoId?' selected':'')+'>'+esc(s.nome)+'</option>';}).join('')+'</select>'+
     '</div>'+
     '<div class="filter-wrap">'+
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>'+
-      '<input type="date" class="sel" id="cs-de" value="'+inicioMes()+'">'+
+      '<input type="date" class="sel" id="cs-de" value="'+CONS.de+'">'+
     '</div>'+
     '<div class="filter-wrap">'+
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>'+
-      '<input type="date" class="sel" id="cs-ate" value="'+hoje()+'">'+
+      '<input type="date" class="sel" id="cs-ate" value="'+CONS.ate+'">'+
     '</div>'+
     '<button class="btn ghost cs-action" id="cs-csv">'+
       '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'+
@@ -1840,9 +1848,10 @@ function vConsolidado(){
   '</div></div><div id="cs-body"></div>';
   const applyCons=debounce(function(){ markFilters(); loadConsolidado(); },350);
   const syncCons=bindQuickPeriods('#cs-qp','#cs-de','#cs-ate',function(){ loadConsolidado(); });
-  $('#cs-serv').addEventListener('change',function(){ markFilters(); loadConsolidado(); });
-  $('#cs-de').addEventListener('change',function(){ syncCons(); applyCons(); });
-  $('#cs-ate').addEventListener('change',function(){ syncCons(); applyCons(); });
+  syncCons(); markFilters();
+  $('#cs-serv').addEventListener('change',function(){ CONS.servicoId=$('#cs-serv').value; markFilters(); loadConsolidado(); });
+  $('#cs-de').addEventListener('change',function(){ CONS.de=$('#cs-de').value; syncCons(); applyCons(); });
+  $('#cs-ate').addEventListener('change',function(){ CONS.ate=$('#cs-ate').value; syncCons(); applyCons(); });
   $('#cs-csv').addEventListener('click',exportCSV);
   loadConsolidado();
 }
