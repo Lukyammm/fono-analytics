@@ -1243,7 +1243,7 @@ function vCenso(){
   $('#cn-status').value=CENSO.status;
   markFilters();
   let t; $('#cn-q').addEventListener('input',function(){ clearTimeout(t); const v=this.value;
-    t=setTimeout(function(){ CENSO.q=v; loadCenso(); },350); });
+    t=setTimeout(function(){ CENSO.q=v; loadCenso(); },200); });
   $('#cn-add').addEventListener('click',function(){ modalAdmissao(); });
   loadCenso();
 }
@@ -1534,7 +1534,7 @@ function vPacientes(){
     '<button class="btn" id="pc-add">+ Novo paciente</button>'+
   '</div></div><div id="pc-body"></div>';
   let t; $('#pc-q').addEventListener('input',function(){ clearTimeout(t); const v=this.value;
-    t=setTimeout(function(){ loadPacientes(v); },350); });
+    t=setTimeout(function(){ loadPacientes(v); },200); });
   $('#pc-add').addEventListener('click',function(){ modalPaciente(null,function(){ loadPacientes($('#pc-q').value); }); });
   loadPacientes('');
 }
@@ -1615,7 +1615,7 @@ function vTriagem(){
       $$('#tr-tabs button').forEach(function(x){x.classList.toggle('active',x===b);}); loadTriagem(); });
   });
   let t; $('#tr-q').addEventListener('input',function(){ clearTimeout(t); const v=this.value;
-    t=setTimeout(function(){ TRI.q=v; loadTriagem(); },350); });
+    t=setTimeout(function(){ TRI.q=v; loadTriagem(); },200); });
   $('#tr-add').addEventListener('click',function(){
     modalTriagem(TRI.tab==='PENDENTES'?'ORELHINHA':TRI.tab,null);
   });
