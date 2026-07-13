@@ -24,9 +24,14 @@
 
 const APP = {
   nome: 'Fono Analytics',
-  sessaoHoras: 10,
+  // CacheService limita cada entrada a 6 h (21600 s) — valores maiores são
+  // reduzidos em silêncio. A sessão é renovada a cada chamada (ver sessao_),
+  // então 6 h é o tempo máximo OCIOSO; quem está usando não é deslogado.
+  sessaoHoras: 6,
   adminLogin: 'admin',
-  adminSenhaInicial: 'fono@2026'
+  adminSenhaInicial: 'fono@2026',
+  loginMaxTentativas: 5,   // erros de senha seguidos por login antes do bloqueio
+  loginBloqueioMin: 10     // minutos de bloqueio após exceder as tentativas
 };
 
 // Tipos de serviço: controlam quais campos clínicos o formulário mostra.
@@ -57,7 +62,8 @@ const SHEETS = {
 
 const SEED_CONFIG = {
   hospitalNome: 'HUC — Hospital Universitário',
-  servicoLabel: 'Serviço de Fonoaudiologia'
+  servicoLabel: 'Serviço de Fonoaudiologia',
+  corPrimaria: '#0e5f6a'   // cor institucional — toda a interface deriva dela
 };
 
 const SEED_SERVICOS = [
@@ -179,21 +185,42 @@ const SEED_LISTAS = {
 
 function doGet() {
   ensureSetup_();
-  return HtmlService.createHtmlOutputFromFile('index')
+  return HtmlService.createTemplateFromFile('index').evaluate()
     .setTitle(APP.nome)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
+/* Dados públicos injetados no HTML antes do login: identidade visual do
+   hospital (nome + cor). Nada sensível — serve para a tela de login já
+   abrir com a marca do hospital, sem esperar o bootstrap autenticado. */
+function bootJson_() {
+  const config = {};
+  sheetToObjects_('Config').forEach(function(c) { config[c.chave] = c.valor; });
+  return JSON.stringify({
+    hospitalNome: String(config.hospitalNome || ''),
+    corPrimaria: String(config.corPrimaria || '')
+  }).replace(/</g, '\\u003c');
+}
+
 /* ============================ SETUP ============================ */
 
 function setup() {
-  const info = ensureSetup_();
+  const info = ensureSetup_(true);
   Logger.log(JSON.stringify(info));
   return info;
 }
 
-function ensureSetup_() {
+/* Carimbo do setup: quando é igual ao valor gravado nas ScriptProperties, o
+   ensureSetup_ retorna na hora, sem varrer a planilha — isso corta segundos
+   do doGet() e do login(). Mude o valor ao alterar os SEEDs para que
+   implantações existentes reexecutem o setup completo no próximo acesso. */
+const SETUP_STAMP = 'v2';
+
+function ensureSetup_(force) {
+  const props = PropertiesService.getScriptProperties();
+  if (!force && props.getProperty('SETUP_OK') === SETUP_STAMP)
+    return { ok: true, seededAdmin: false, login: null, senhaInicial: null };
   const ss = getSS_();
   Object.keys(SHEETS).forEach(function(name) {
     let sh = ss.getSheetByName(name);
@@ -258,6 +285,7 @@ function ensureSetup_() {
     }
   }
 
+  props.setProperty('SETUP_OK', SETUP_STAMP);
   return { ok: true, seededAdmin: seededAdmin,
     login: seededAdmin ? APP.adminLogin : null,
     senhaInicial: seededAdmin ? APP.adminSenhaInicial : null };
@@ -370,6 +398,59 @@ function repararEsquemaLegado() {
         relatorio.push('⚠️ ATENÇÃO: id=' + id + ' aparece ' + porId[id].length +
           ' vezes na aba Usuarios (linhas ' + porId[id].map(function(o){return o._row;}).join(', ') +
           '). Revise manualmente qual login/senha está em uso antes de apagar a duplicata.');
+      }
+    });
+  })();
+
+  // --- Episodios: setorId gravado como TEXTO (nome do setor) pela migração ---
+  // A importação de planilhas antigas gravou o NOME do setor na coluna setorId
+  // e deixou servicoId vazio; esses episódios somem dos filtros e do consolidado.
+  // Converte nome -> id numérico e preenche servicoId a partir do setor.
+  (function() {
+    const setores = sheetToObjects_('Setores');
+    const porNome = {}, porId = {};
+    setores.forEach(function(s) {
+      porNome[String(s.nome).trim().toUpperCase()] = s;
+      porId[String(Number(s.id))] = s;
+    });
+    const sh = getSheet_('Episodios');
+    const head = SHEETS.Episodios;
+    const last = sh.getLastRow();
+    if (last < 2) { relatorio.push('Episodios: sem dados para normalizar.'); return; }
+    const colServ = head.indexOf('servicoId') + 1;
+    const range = sh.getRange(2, colServ, last - 1, 2); // servicoId + setorId (adjacentes)
+    const vals = range.getValues();
+    let nSetor = 0, nServ = 0, changed = false;
+    vals.forEach(function(row) {
+      const raw = row[1];
+      let setor = null;
+      if (raw !== '' && raw !== null) {
+        setor = isNaN(Number(raw))
+          ? (porNome[String(raw).trim().toUpperCase()] || null)
+          : (porId[String(Number(raw))] || null);
+      }
+      if (setor && isNaN(Number(raw))) { row[1] = Number(setor.id); nSetor++; changed = true; }
+      if ((row[0] === '' || row[0] === null) && setor) {
+        row[0] = Number(setor.servicoId); nServ++; changed = true;
+      }
+    });
+    if (changed) { range.setValues(vals); invalidateSheetCache_('Episodios'); }
+    relatorio.push('Episodios: ' + nSetor + ' setorId convertidos de texto para id; ' +
+      nServ + ' servicoId preenchidos a partir do setor.');
+  })();
+
+  // --- Abas órfãs de versões antigas do esquema (Internacoes, TriagemNeonatal) ---
+  // Removidas apenas se estiverem vazias (só o cabeçalho) — nunca se houver dado.
+  (function() {
+    const ss = getSS_();
+    ['Internacoes', 'TriagemNeonatal'].forEach(function(n) {
+      const s = ss.getSheetByName(n);
+      if (!s) return;
+      if (s.getLastRow() <= 1) {
+        ss.deleteSheet(s);
+        relatorio.push(n + ': aba órfã de versão antiga removida (estava vazia).');
+      } else {
+        relatorio.push('⚠️ ' + n + ': aba de versão antiga CONTÉM dados — mantida; revise manualmente.');
       }
     });
   })();
@@ -494,12 +575,25 @@ function hash_(senha, salt) {
 
 function login(loginStr, senha) {
   ensureSetup_();
+  const chave = String(loginStr || '').toLowerCase().trim();
+  // Freio de força bruta: N erros seguidos bloqueiam o login por alguns minutos.
+  const cache = CacheService.getScriptCache();
+  const kFail = 'fail_' + chave;
+  const falhas = Number(cache.get(kFail) || 0);
+  if (falhas >= APP.loginMaxTentativas)
+    return { ok: false, erro: 'Muitas tentativas seguidas. Aguarde ' +
+      APP.loginBloqueioMin + ' minutos e tente novamente.' };
+  const falhou = function() {
+    cache.put(kFail, String(falhas + 1), APP.loginBloqueioMin * 60);
+    return { ok: false, erro: 'Usuário ou senha inválidos.' };
+  };
   const u = sheetToObjects_('Usuarios').filter(function(x) {
-    return String(x.login).toLowerCase() === String(loginStr || '').toLowerCase().trim();
+    return String(x.login).toLowerCase() === chave;
   })[0];
   if (!u || u.ativo === false || String(u.ativo).toUpperCase() === 'FALSE')
-    return { ok: false, erro: 'Usuário ou senha inválidos.' };
-  if (hash_(senha, u.salt) !== u.senhaHash) return { ok: false, erro: 'Usuário ou senha inválidos.' };
+    return falhou();
+  if (hash_(senha, u.salt) !== u.senhaHash) return falhou();
+  cache.remove(kFail);
   const token = Utilities.getUuid();
   CacheService.getScriptCache().put('sess_' + token,
     JSON.stringify({ id: u.id, login: u.login, nome: u.nome, perfil: u.perfil }),
@@ -647,12 +741,28 @@ function saveUsuario(token, obj) {
   const sess = sessao_(token); exigePerfil_(sess, ['ADMIN', 'COORDENACAO']);
   return withLock_(function() {
     const todos = sheetToObjects_('Usuarios');
+    const perfilNovo = String(obj.perfil || 'FONO').toUpperCase();
+    // só ADMIN concede (ou mantém em outra conta) o perfil ADMIN — sem isso a
+    // COORDENAÇÃO conseguiria criar/promover administradores.
+    if (sess.perfil !== 'ADMIN' && perfilNovo === 'ADMIN')
+      return { ok: false, erro: 'Apenas administradores podem conceder o perfil ADMIN.' };
+    if (obj.senha && String(obj.senha).length < 6)
+      return { ok: false, erro: 'A senha precisa ter ao menos 6 caracteres.' };
     if (obj.id) {
       const u = byId_('Usuarios', obj.id);
       if (!u) return { ok: false, erro: 'Usuário não encontrado.' };
       if (sess.perfil !== 'ADMIN' && u.perfil === 'ADMIN')
         return { ok: false, erro: 'Sem permissão para editar contas de administrador.' };
-      const patch = { nome: obj.nome, perfil: obj.perfil, ehFono: !!obj.ehFono, ativo: !!obj.ativo };
+      // nunca deixar o hospital sem nenhum administrador ativo
+      const eraAdminAtivo = u.perfil === 'ADMIN' && truthy_(u.ativo);
+      if (eraAdminAtivo && (perfilNovo !== 'ADMIN' || !obj.ativo)) {
+        const outroAdmin = todos.some(function(x) {
+          return Number(x.id) !== Number(u.id) && x.perfil === 'ADMIN' && truthy_(x.ativo);
+        });
+        if (!outroAdmin)
+          return { ok: false, erro: 'Este é o único administrador ativo — promova outro usuário antes de rebaixar ou desativar esta conta.' };
+      }
+      const patch = { nome: obj.nome, perfil: perfilNovo, ehFono: !!obj.ehFono, ativo: !!obj.ativo };
       if (obj.senha) {
         const salt = Utilities.getUuid();
         patch.senhaHash = hash_(obj.senha, salt); patch.salt = salt; patch.primeiroAcesso = true;
@@ -660,6 +770,8 @@ function saveUsuario(token, obj) {
       updateRow_('Usuarios', u._row, patch);
       return { ok: true, id: obj.id };
     }
+    if (!String(obj.nome || '').trim() || !String(obj.login || '').trim())
+      return { ok: false, erro: 'Informe nome e login.' };
     if (todos.some(function(x) { return String(x.login).toLowerCase() === String(obj.login).toLowerCase(); }))
       return { ok: false, erro: 'Já existe usuário com esse login.' };
     const id = nextId_('Usuarios');
@@ -667,7 +779,7 @@ function saveUsuario(token, obj) {
     appendRow_('Usuarios', {
       id: id, nome: obj.nome, login: obj.login,
       senhaHash: hash_(obj.senha || APP.adminSenhaInicial, salt), salt: salt,
-      perfil: obj.perfil || 'FONO', ehFono: obj.ehFono !== false, ativo: true,
+      perfil: perfilNovo, ehFono: obj.ehFono !== false, ativo: true,
       primeiroAcesso: true, criadoEm: new Date()
     });
     return { ok: true, id: id };
@@ -691,16 +803,27 @@ function listPacientes(token, q) {
 function savePaciente(token, obj) {
   const sess = sessao_(token);
   return withLock_(function() {
+    // prontuário é o identificador clínico — duplicá-lo espalha os episódios
+    // do mesmo paciente por fichas diferentes e quebra o cruzamento de retornos.
+    const pront = String(obj.prontuario == null ? '' : obj.prontuario).trim();
+    if (pront) {
+      const dup = sheetToObjects_('Pacientes').filter(function(p) {
+        return String(p.prontuario).trim() === pront &&
+               (!obj.id || Number(p.id) !== Number(obj.id));
+      })[0];
+      if (dup) return { ok: false, erro: 'Já existe paciente com o prontuário ' +
+        pront + ' (' + dup.nome + ').' };
+    }
     if (obj.id) {
       const p = byId_('Pacientes', obj.id);
       if (!p) return { ok: false, erro: 'Paciente não encontrado.' };
-      updateRow_('Pacientes', p._row, { nome: up_(obj.nome), prontuario: obj.prontuario,
+      updateRow_('Pacientes', p._row, { nome: up_(obj.nome), prontuario: pront,
         sexo: obj.sexo, dataNascimento: obj.dataNascimento || '' });
       return { ok: true, id: obj.id };
     }
     const id = nextId_('Pacientes');
     appendRow_('Pacientes', {
-      id: id, nome: up_(obj.nome), prontuario: obj.prontuario, sexo: obj.sexo,
+      id: id, nome: up_(obj.nome), prontuario: pront, sexo: obj.sexo,
       dataNascimento: obj.dataNascimento || '', criadoEm: new Date(), criadoPor: sess.nome
     });
     return { ok: true, id: id };
@@ -722,6 +845,10 @@ function saveEpisodio(token, obj) {
   return withLock_(function() {
     const dados = {};
     EPISODIO_CAMPOS.forEach(function(c) { if (obj[c] !== undefined) dados[c] = obj[c]; });
+    const vIni = String(dados.vaaInicio || '').slice(0, 10);
+    const vFim = String(dados.vaaConclusao || '').slice(0, 10);
+    if (vIni && vFim && vFim < vIni)
+      return { ok: false, erro: 'A conclusão do desmame de VAA não pode ser anterior ao início.' };
     if (obj.id) {
       const e = byId_('Episodios', obj.id);
       if (!e) return { ok: false, erro: 'Registro não encontrado.' };
@@ -746,6 +873,10 @@ function encerrarEpisodio(token, obj) {
     const e = byId_('Episodios', obj.id);
     if (!e) return { ok: false, erro: 'Registro não encontrado.' };
     if (e.status !== 'ATIVO') return { ok: false, erro: 'O episódio já está encerrado.' };
+    const adm = String(e.dataAdmissao || '').slice(0, 10);
+    const saida = String(obj.dataSaida || isoDate_(new Date())).slice(0, 10);
+    if (adm && saida && saida < adm)
+      return { ok: false, erro: 'A data de saída não pode ser anterior à admissão (' + adm + ').' };
     updateRow_('Episodios', e._row, {
       status: 'ENCERRADO',
       dataSaida: obj.dataSaida || isoDate_(new Date()),
@@ -766,11 +897,38 @@ function reabrirEpisodio(token, id) {
   });
 }
 
+/* Resolve o setor de um episódio de forma tolerante: aceita id numérico OU o
+   nome do setor como texto — a migração de planilhas antigas gravou o nome na
+   coluna setorId, e sem esta tolerância ~todos os episódios migrados somem dos
+   filtros, do dashboard e do consolidado. Retorna o objeto do setor ou null. */
+function setorResolver_() {
+  const all = sheetToObjects_('Setores');
+  const porId = {}, porNome = {};
+  all.forEach(function(s) {
+    porId[String(Number(s.id))] = s;
+    porNome[String(s.nome).trim().toUpperCase()] = s;
+  });
+  return function(v) {
+    if (v === '' || v === null || v === undefined) return null;
+    if (!isNaN(Number(v))) return porId[String(Number(v))] || null;
+    return porNome[String(v).trim().toUpperCase()] || null;
+  };
+}
+
+/* servicoId efetivo do episódio: usa o campo quando preenchido; quando vazio
+   (dados migrados), herda do setor resolvido. */
+function servicoDe_(e, setor) {
+  const n = Number(e.servicoId);
+  if (e.servicoId !== '' && e.servicoId !== null && e.servicoId !== undefined && !isNaN(n) && n)
+    return n;
+  return setor ? Number(setor.servicoId) : null;
+}
+
 function listEpisodios(token, filtro) {
   sessao_(token);
   filtro = filtro || {};
   const pacientes = indexById_(sheetToObjects_('Pacientes'));
-  const setores = indexById_(sheetToObjects_('Setores'));
+  const stOf = setorResolver_();
   const atds = sheetToObjects_('Atendimentos');
   const atdPorEp = {};
   atds.forEach(function(a) {
@@ -782,17 +940,20 @@ function listEpisodios(token, filtro) {
 
   let lista = sheetToObjects_('Episodios');
   if (filtro.status) lista = lista.filter(function(e) { return e.status === filtro.status; });
-  if (filtro.servicoId) lista = lista.filter(function(e) { return Number(e.servicoId) === Number(filtro.servicoId); });
-  if (filtro.setorId) lista = lista.filter(function(e) { return Number(e.setorId) === Number(filtro.setorId); });
+  if (filtro.servicoId) lista = lista.filter(function(e) {
+    return servicoDe_(e, stOf(e.setorId)) === Number(filtro.servicoId); });
+  if (filtro.setorId) lista = lista.filter(function(e) {
+    const s = stOf(e.setorId); return s && Number(s.id) === Number(filtro.setorId); });
 
   let linhas = lista.map(function(e) {
     const p = pacientes[e.pacienteId] || {};
     const at = atdPorEp[Number(e.id)] || { n: 0, ultima: '' };
+    const st = stOf(e.setorId);
     return {
       id: e.id, pacienteId: e.pacienteId, nome: p.nome || '—', prontuario: p.prontuario || '',
       sexo: p.sexo || '', dataNascimento: p.dataNascimento || '',
-      servicoId: e.servicoId, setorId: e.setorId,
-      setor: (setores[e.setorId] || {}).nome || '', leito: e.leito,
+      servicoId: servicoDe_(e, st), setorId: st ? Number(st.id) : e.setorId,
+      setor: st ? st.nome : '', leito: e.leito,
       status: e.status, dataAdmissao: e.dataAdmissao, dataSaida: e.dataSaida,
       prioridade: e.prioridade, solicitacao: e.solicitacao,
       hipoteseDiagnostica: e.hipoteseDiagnostica,
@@ -808,7 +969,7 @@ function listEpisodios(token, filtro) {
     linhas = linhas.filter(function(l) {
       return String(l.nome).toLowerCase().indexOf(q) >= 0 ||
              String(l.prontuario).toLowerCase().indexOf(q) >= 0 ||
-             String(l.leito).toLowerCase().indexOf(q) >= 0;
+             String(l.leito || '').toLowerCase().indexOf(q) >= 0;
     });
   }
 
@@ -829,6 +990,13 @@ function getFicha(token, episodioId) {
   sessao_(token);
   const e = byId_('Episodios', episodioId);
   if (!e) return { ok: false, erro: 'Registro não encontrado.' };
+  // normaliza setor/serviço de dados migrados (setorId como texto, servicoId vazio)
+  // para a ficha abrir com o setor certo e o formulário clínico do tipo correto
+  const st = setorResolver_()(e.setorId);
+  if (st) {
+    e.setorId = Number(st.id);
+    if (!servicoDe_(e, null)) e.servicoId = Number(st.servicoId);
+  }
   const p = byId_('Pacientes', e.pacienteId) || {};
   const at = sheetToObjects_('Atendimentos')
     .filter(function(x) { return Number(x.episodioId) === Number(episodioId); })
@@ -912,16 +1080,22 @@ function listTriagens(token, filtro) {
     });
   }
   if (filtro.pendentes) {
-    // encaminhados para reteste/BERA que ainda não têm registro de retorno com o mesmo prontuário
+    // encaminhados para reteste/BERA que ainda não têm registro de retorno com o
+    // mesmo prontuário — registros SEM prontuário nunca são baixados por engano
     const retornos = {};
     sheetToObjects_('Triagens').forEach(function(t) {
-      if (String(t.tipo).indexOf('RETORNO') === 0) retornos[String(t.prontuario) + '::' + t.tipo.replace('RETORNO_', '')] = true;
+      const tipo = String(t.tipo || '');
+      const pront = String(t.prontuario || '').trim();
+      if (tipo.indexOf('RETORNO_') === 0 && pront)
+        retornos[pront + '::' + tipo.replace('RETORNO_', '')] = true;
     });
     lista = lista.filter(function(t) {
-      if (String(t.tipo).indexOf('RETORNO') === 0) return false;
+      const tipo = String(t.tipo || '');
+      if (tipo.indexOf('RETORNO') === 0) return false;
       const enc = String(t.encReteste).toUpperCase() === 'SIM' || String(t.encBera).toUpperCase() === 'SIM' ||
                   String(t.encFrenotomia).toUpperCase() === 'SIM';
-      return enc && !retornos[String(t.prontuario) + '::' + t.tipo];
+      const pront = String(t.prontuario || '').trim();
+      return enc && !(pront && retornos[pront + '::' + tipo]);
     });
   }
   lista.sort(function(a, b) { return String(b.dataExame).localeCompare(String(a.dataExame)); });
@@ -996,10 +1170,11 @@ function dashboard(token, filtro) {
   const ate = filtro.ate || '';
   const servicoId = filtro.servicoId ? Number(filtro.servicoId) : null;
 
-  const setores = indexById_(sheetToObjects_('Setores'));
+  const stOf = setorResolver_();
 
   let episodios = sheetToObjects_('Episodios');
-  if (servicoId) episodios = episodios.filter(function(e) { return Number(e.servicoId) === servicoId; });
+  if (servicoId) episodios = episodios.filter(function(e) {
+    return servicoDe_(e, stOf(e.setorId)) === servicoId; });
   const epIdx = indexById_(episodios);
 
   const atend = sheetToObjects_('Atendimentos').filter(function(a) {
@@ -1060,7 +1235,8 @@ function dashboard(token, filtro) {
     const dia = String(a.data).slice(0, 10);
     procPorDia[dia] = (procPorDia[dia] || 0) + n;
     const ep = epIdx[a.episodioId];
-    const setor = ep ? ((setores[ep.setorId] || {}).nome || '—') : '—';
+    const st = ep ? stOf(ep.setorId) : null;
+    const setor = st ? st.nome : '—';
     procPorSetor[setor] = (procPorSetor[setor] || 0) + n;
     const prof = a.profissional || '—';
     procPorProf[prof] = (procPorProf[prof] || 0) + n;
@@ -1144,17 +1320,24 @@ function consolidado(token, filtro) {
 
   const pacientes = indexById_(sheetToObjects_('Pacientes'));
   const setoresAll = sheetToObjects_('Setores').sort(byOrdem_);
-  const setIdx = indexById_(setoresAll);
+  const stOf = setorResolver_();
 
   let episodios = sheetToObjects_('Episodios').filter(function(e) {
     return dentroPeriodo_(e.dataAdmissao, de, ate) || dentroPeriodo_(e.dataSaida, de, ate) ||
            (e.status === 'ATIVO' && (!ate || String(e.dataAdmissao).slice(0,10) <= ate));
   });
-  if (servicoId) episodios = episodios.filter(function(e) { return Number(e.servicoId) === servicoId; });
+  if (servicoId) episodios = episodios.filter(function(e) {
+    return servicoDe_(e, stOf(e.setorId)) === servicoId; });
+
+  // resolve o setor de cada episódio uma única vez (id numérico ou nome legado)
+  episodios.forEach(function(e) {
+    const s = stOf(e.setorId);
+    e._sid = s ? Number(s.id) : null;
+  });
 
   // setores presentes (na ordem cadastrada)
   const usados = {};
-  episodios.forEach(function(e) { usados[Number(e.setorId)] = true; });
+  episodios.forEach(function(e) { if (e._sid !== null) usados[e._sid] = true; });
   const cols = setoresAll
     .filter(function(s) { return usados[Number(s.id)] && (!servicoId || Number(s.servicoId) === servicoId); })
     .map(function(s) { return { id: Number(s.id), nome: s.nome }; });
@@ -1167,8 +1350,8 @@ function consolidado(token, filtro) {
     episodios.forEach(function(e) {
       const l = valorFn(e);
       if (l === null || l === undefined || m[l] === undefined) return;
-      const sid = Number(e.setorId);
-      if (m[l][sid] === undefined) return;
+      const sid = e._sid;
+      if (sid === null || m[l][sid] === undefined) return;
       m[l][sid]++;
       totalCol[sid]++;
     });
