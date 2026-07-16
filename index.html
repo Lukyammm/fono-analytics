@@ -368,6 +368,8 @@ td.r,th.r{text-align:right}
 @keyframes fadeUp{from{transform:translateY(10px);opacity:0}to{transform:translateY(0);opacity:1}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes sheetUp{from{transform:translateY(60px);opacity:.4}to{transform:translateY(0);opacity:1}}
+@keyframes flashok { 0% { background-color: var(--ok); color: #fff; } 100% { background-color: transparent; } }
+.flash-ok { animation: flashok 1s ease; }
 
 /* skeleton loaders */
 .skel{background:linear-gradient(90deg,var(--surface-2) 25%,var(--skel-hi) 37%,var(--surface-2) 63%);
@@ -636,9 +638,13 @@ let VIEWCACHE={};
 function swrGs(fn,args,view,render){
   const key=fn+'::'+JSON.stringify(args);
   const hit=Object.prototype.hasOwnProperty.call(VIEWCACHE,key);
-  if(hit) render(VIEWCACHE[key]);              // instantâneo, do cache
+  if(hit) {
+    if(fn==='listPacientes' && args[1]==='') S.pacientes = VIEWCACHE[key].pacientes;
+    render(VIEWCACHE[key]);              // instantâneo, do cache
+  }
   gs.apply(null,[fn].concat(args)).then(function(r){
     VIEWCACHE[key]=r;
+    if(fn==='listPacientes' && args[1]==='') S.pacientes = r.pacientes;
     if(S.view===view) render(r);               // revalida (descarta se já saiu da tela)
   }).catch(function(){});                      // erro já tratado (toast) em gs()
 }
@@ -1053,6 +1059,22 @@ function chipsVal(name,el){
     .map(function(i){return i.value;});
 }
 
+function bindSmartProntuario(idPront, idNome, idNasc, idSexo) {
+  const prontEl = $(idPront);
+  if (!prontEl) return;
+  prontEl.addEventListener('input', debounce(function() {
+    const v = prontEl.value.trim().toLowerCase();
+    if (v.length < 2) return;
+    const p = (S.pacientes||[]).filter(function(x){ return String(x.prontuario).toLowerCase() === v; })[0];
+    if (p) {
+      if(idNome && $(idNome)) { $(idNome).value = p.nome; $(idNome).classList.add('flash-ok'); setTimeout(function(){$(idNome).classList.remove('flash-ok');},1000); }
+      if(idNasc && $(idNasc) && p.dataNascimento) $(idNasc).value = String(p.dataNascimento).slice(0,10);
+      if(idSexo && $(idSexo) && p.sexo) $(idSexo).value = p.sexo;
+      toast('Paciente pré-carregado.');
+    }
+  }, 400));
+}
+
 /* ========================= DASHBOARD ========================= */
 const DASH={de:null,ate:null,servicoId:''};
 function vDashboard(){
@@ -1287,11 +1309,13 @@ function modalAdmissao(){
   const svs=servicos();
   openModal(mHead('Admitir paciente')+
   '<div class="modal-b">'+
-    '<div class="field"><label>Paciente</label>'+
-      '<input id="ad-busca" placeholder="Digite para buscar por nome ou prontuário…">'+
-      '<div id="ad-res" style="margin-top:6px"></div>'+
-      '<input type="hidden" id="ad-pid">'+
-      '<div class="hint">Não achou? <a href="#" id="ad-novo">Cadastrar novo paciente</a></div></div>'+
+    '<div class="frm">'+
+      '<div class="field"><label>Prontuário</label><input id="ad-pront" placeholder="Digite para buscar..."></div>'+
+      '<div class="field"><label>Nome do paciente</label><input id="ad-nome"></div>'+
+      '<div class="field"><label>Data de nasc.</label><input type="date" id="ad-nasc"></div>'+
+      '<div class="field"><label>Sexo</label><select id="ad-sexo"><option value=""></option><option value="M">M</option><option value="F">F</option></select></div>'+
+    '</div>'+
+    '<hr style="margin:15px 0;border:0;border-top:1px solid var(--line)">'+
     '<div class="frm">'+
       '<div class="field"><label>Serviço</label><select id="ad-serv">'+
         svs.map(function(s){return '<option value="'+s.id+'">'+esc(s.nome)+'</option>';}).join('')+'</select></div>'+
@@ -1313,46 +1337,24 @@ function modalAdmissao(){
   }
   $('#ad-serv').addEventListener('change',refresh); refresh();
 
-  let t; $('#ad-busca').addEventListener('input',function(){
-    clearTimeout(t); const v=this.value;
-    if(v.length<2){ $('#ad-res').innerHTML=''; return; }
-    t=setTimeout(function(){
-      gs('listPacientes',S.token,v).then(function(r){
-        $('#ad-res').innerHTML=r.pacientes.slice(0,6).map(function(p){
-          return '<button class="btn ghost sm" style="margin:2px" data-id="'+p.id+'" data-n="'+esc(p.nome)+'">'+
-            esc(p.nome)+' <span class="tag">'+esc(p.prontuario)+'</span></button>';
-        }).join('')||'<span class="hint">Nenhum paciente encontrado.</span>';
-        $$('#ad-res button').forEach(function(b){
-          b.addEventListener('click',function(){
-            $('#ad-pid').value=b.dataset.id;
-            $('#ad-busca').value=b.dataset.n;
-            $('#ad-res').innerHTML='<span class="pill ok">selecionado</span>';
-          });
-        });
-      });
-    },350);
-  });
-  $('#ad-novo').addEventListener('click',function(e){
-    e.preventDefault();
-    modalPaciente(null,function(id,nome){
-      modalAdmissao();
-      $('#ad-pid').value=id; $('#ad-busca').value=nome;
-      $('#ad-res').innerHTML='<span class="pill ok">selecionado</span>';
-    });
-  });
+  bindSmartProntuario('#ad-pront', '#ad-nome', '#ad-nasc', '#ad-sexo');
   $('#ad-save').addEventListener('click',function(){
-    const pid=$('#ad-pid').value;
-    if(!pid){ toast('Selecione ou cadastre o paciente.'); return; }
+    const nome=$('#ad-nome').value.trim();
+    const pront=$('#ad-pront').value.trim();
+    if(!nome || !pront){ toast('Informe o nome e o prontuário.'); return; }
     const obj=coletaClinico();
-    obj.pacienteId=Number(pid); obj.servicoId=Number($('#ad-serv').value);
+    obj.nomePaciente=nome; obj.prontuario=pront;
+    obj.dataNascimento=$('#ad-nasc').value; obj.sexo=$('#ad-sexo').value;
+    obj.servicoId=Number($('#ad-serv').value);
     obj.setorId=Number($('#ad-setor').value); obj.leito=$('#ad-leito').value;
     obj.dataAdmissao=$('#ad-data').value;
     this.disabled=true;
     const btn=this;
+    btn.innerHTML = '<div class="spin" style="width:14px;height:14px;margin:0;border-width:2px;border-top-color:var(--btn-ink)"></div> Admitindo...';
     gs('saveEpisodio',S.token,obj).then(function(r){
       if(r.ok){ toast('Paciente admitido.'); closeModal(); loadCenso(); }
-      else { toast(r.erro||'Erro ao admitir.'); btn.disabled=false; }
-    }).catch(function(){ btn.disabled=false; });
+      else { toast(r.erro||'Erro ao admitir.'); btn.disabled=false; btn.innerHTML='Admitir'; }
+    }).catch(function(){ btn.disabled=false; btn.innerHTML='Admitir'; });
   });
 }
 
@@ -1423,11 +1425,17 @@ function abrirFicha(epId){
         (ativo?'<button class="btn sm" id="fx-add" style="margin-bottom:12px">+ Registrar atendimento</button>':'')+
         '<div class="tl">'+(r.atendimentos.length?r.atendimentos.map(function(a){
           const procs=String(a.procedimentos||'').split(' | ').filter(function(x){return x;});
-          return '<div class="tl-item"><div class="d">'+fmtD(a.data)+
-            '<small>'+esc(a.profissional)+(truthy(a.extra)?' · extra':'')+'</small></div>'+
-            '<div><div>'+procs.map(function(pr){return '<span class="tag">'+esc(pr)+'</span>';}).join('')+'</div>'+
-            (a.obs?'<div class="obs">'+esc(a.obs)+'</div>':'')+'</div>'+
-            '<button class="btn xs danger" data-del="'+a.id+'">excluir</button></div>';
+          return '<div class="tl-item" style="padding:15px;background:var(--surface);border:1px solid var(--line);border-radius:12px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,0.03);position:relative">'+
+            '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">'+
+              '<div style="font-weight:600;color:var(--text);display:flex;align-items:center;gap:6px">'+
+                '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'+
+                fmtD(a.data)+
+              '</div>'+
+              '<div style="font-size:12px;color:var(--text-light);background:var(--bg);padding:2px 8px;border-radius:99px;border:1px solid var(--line)">'+esc(a.profissional)+(truthy(a.extra)?' <b style="color:var(--warn)">· extra</b>':'')+'</div>'+
+            '</div>'+
+            '<div style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:4px">'+procs.map(function(pr){return '<span class="tag" style="background:var(--accent-15);color:var(--accent-900);border:none;font-weight:500">'+esc(pr)+'</span>';}).join('')+'</div>'+
+            (a.obs?'<div class="obs" style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);font-style:italic;color:var(--text-light)">'+esc(a.obs)+'</div>':'')+
+            '<button class="btn xs ghost danger" data-del="'+a.id+'" style="position:absolute;bottom:10px;right:10px;opacity:0.6">Excluir</button></div>';
         }).join(''):'<div class="empty">Nenhum atendimento registrado.</div>')+'</div>'+
       '</div>'+
       '<div id="fx-cli" class="hidden">'+formClinico(sv.tipo||'ADULTO',e)+
@@ -1458,9 +1466,13 @@ function abrirFicha(epId){
     });
     $('#fx-savecli').addEventListener('click',function(){
       const obj=coletaClinico(); obj.id=e.id;
+      this.disabled=true;
+      const btn=this;
+      btn.innerHTML='<div class="spin" style="width:14px;height:14px;margin:0;border-width:2px;border-top-color:var(--btn-ink)"></div> Salvando...';
       gs('saveEpisodio',S.token,obj).then(function(r2){
         if(r2.ok){ toast('Dados salvos.'); closeModal(); loadCensoSafe(); }
-      });
+        else { toast(r2.erro||'Erro ao salvar.'); btn.disabled=false; btn.innerHTML='Salvar dados clínicos'; }
+      }).catch(function(){ btn.disabled=false; btn.innerHTML='Salvar dados clínicos'; });
     });
     if($('#fx-enc')) $('#fx-enc').addEventListener('click',function(){ modalEncerrar(e,sv.tipo); });
     if($('#fx-reabrir')) $('#fx-reabrir').addEventListener('click',function(){
@@ -1493,12 +1505,13 @@ function modalAtendimento(e,tipo){
     if(!procs.length){ toast('Selecione ao menos um procedimento.'); return; }
     this.disabled=true;
     const btn=this;
+    btn.innerHTML = '<div class="spin" style="width:14px;height:14px;margin:0;border-width:2px;border-top-color:var(--btn-ink)"></div> Registrando...';
     gs('registrarAtendimento',S.token,{episodioId:e.id,data:$('#at-data').value,
       procedimentos:procs,profissional:$('#at-prof').value,
       extra:!!$('#at-extra').value,obs:$('#at-obs').value}).then(function(r){
       if(r.ok){ toast('Atendimento registrado.'); abrirFicha(e.id); }
-      else { toast(r.erro||'Erro ao registrar.'); btn.disabled=false; }
-    }).catch(function(){ btn.disabled=false; });
+      else { toast(r.erro||'Erro ao registrar.'); btn.disabled=false; btn.innerHTML='Registrar'; }
+    }).catch(function(){ btn.disabled=false; btn.innerHTML='Registrar'; });
   });
 }
 
@@ -1515,10 +1528,14 @@ function modalEncerrar(e,tipo){
   '<button class="btn" id="en-save">Encerrar</button></div>');
   $('#en-cancel').addEventListener('click',function(){ abrirFicha(e.id); });
   $('#en-save').addEventListener('click',function(){
+    this.disabled=true;
+    const btn=this;
+    btn.innerHTML='<div class="spin" style="width:14px;height:14px;margin:0;border-width:2px;border-top-color:var(--btn-ink)"></div> Encerrando...';
     gs('encerrarEpisodio',S.token,{id:e.id,dataSaida:$('#en-data').value,
       dietaSaida:$('#en-dieta').value,foisAlta:$('#en-fois')?$('#en-fois').value:undefined}).then(function(r){
       if(r.ok){ toast('Acompanhamento encerrado.'); closeModal(); loadCensoSafe(); }
-    });
+      else { toast(r.erro||'Erro ao encerrar.'); btn.disabled=false; btn.innerHTML='Encerrar'; }
+    }).catch(function(){ btn.disabled=false; btn.innerHTML='Encerrar'; });
   });
 }
 
@@ -1728,6 +1745,7 @@ function modalTriagem(tipo,t){
     if(!nome){ toast('Informe o nome.'); return; }
     this.disabled=true;
     const btn=this;
+    btn.innerHTML = '<div class="spin" style="width:14px;height:14px;margin:0;border-width:2px;border-top-color:var(--btn-ink)"></div> Salvando...';
     gs('saveTriagem',S.token,{id:t.id,tipo:tipo,nome:nome,prontuario:$('#tg-pront').value,
       sexo:$('#tg-sexo').value,dataNascimento:$('#tg-nasc').value,leito:$('#tg-leito').value,
       dataExame:$('#tg-data').value,resultado:$('#tg-res').value,resultadoBera:g('#tg-bera'),
@@ -1737,8 +1755,8 @@ function modalTriagem(tipo,t){
       fatoresRisco:chipsVal('frisco'),procedimentos:chipsVal('tproc'),
       profissional:$('#tg-prof').value}).then(function(r){
       if(r.ok){ toast('Registro salvo.'); closeModal(); loadTriagem(); }
-      else { toast(r.erro||'Erro ao salvar.'); btn.disabled=false; }
-    }).catch(function(){ btn.disabled=false; });
+      else { toast(r.erro||'Erro ao salvar.'); btn.disabled=false; btn.innerHTML='Salvar'; }
+    }).catch(function(){ btn.disabled=false; btn.innerHTML='Salvar'; });
   });
   if($('#tg-del')) $('#tg-del').addEventListener('click',function(){
     if(!confirm('Excluir este registro?')) return;
@@ -1786,29 +1804,36 @@ function loadReunioes(){
 function modalReuniao(x){
   x=x||{};
   const nomesSetores=setores(null).map(function(s){return s.nome;});
+  if(nomesSetores.indexOf('Equipe')<0) nomesSetores.push('Equipe');
+  
   openModal(mHead(x.id?'Editar reunião':'Nova reunião')+
   '<div class="modal-b"><div class="frm">'+
     '<div class="field"><label>Data</label><input type="date" id="re-data" value="'+esc(String(x.data||'').slice(0,10)||hoje())+'"></div>'+
     '<div class="field"><label>Setor / local</label><input id="re-setor" list="re-setores" value="'+esc(x.setor||'')+'">'+
       '<datalist id="re-setores">'+nomesSetores.map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist></div>'+
-    '<div class="field"><label>Fonoaudiólogo</label><select id="re-fono">'+
-      opts(S.dados.fonos.length?S.dados.fonos:[S.user.nome],x.fonoaudiologo||S.user.nome)+'</select></div>'+
-    '<div class="field"><label>Nº de participantes</label><input type="number" min="0" id="re-part" value="'+esc(x.participantes||'')+'"></div>'+
+    '<div class="field full"><label>Fonoaudiólogo(s)</label>'+
+      chips('re-fono', S.dados.fonos.length?S.dados.fonos:[S.user.nome], String(x.fonoaudiologo||S.user.nome).split(' | '))+'</div>'+
     '<div class="field full"><label>Pauta / ata</label><textarea id="re-pauta" rows="4">'+esc(x.pauta||'')+'</textarea></div>'+
   '</div></div>'+
   '<div class="modal-f">'+
   (x.id&&isGestor()?'<button class="btn danger" id="re-del">Excluir</button>':'')+
   '<button class="btn ghost" onclick="closeModal()">Cancelar</button>'+
   '<button class="btn" id="re-save">Salvar</button></div>');
+  
+  bindChips(document);
+  
   $('#re-save').addEventListener('click',function(){
     this.disabled=true;
     const btn=this;
+    
+    btn.innerHTML = '<div class="spin" style="width:14px;height:14px;margin:0;border-width:2px;border-top-color:var(--btn-ink)"></div> Salvando...';
+    
     gs('saveReuniao',S.token,{id:x.id,data:$('#re-data').value,setor:$('#re-setor').value,
-      fonoaudiologo:$('#re-fono').value,participantes:$('#re-part').value,
+      fonoaudiologo:chipsVal('re-fono'),
       pauta:$('#re-pauta').value}).then(function(r){
       if(r.ok){ toast('Reunião salva.'); closeModal(); loadReunioes(); }
-      else { toast(r.erro||'Erro ao salvar.'); btn.disabled=false; }
-    }).catch(function(){ btn.disabled=false; });
+      else { toast(r.erro||'Erro ao salvar.'); btn.disabled=false; btn.innerHTML='Salvar'; }
+    }).catch(function(){ btn.disabled=false; btn.innerHTML='Salvar'; });
   });
   if($('#re-del')) $('#re-del').addEventListener('click',function(){
     if(!confirm('Excluir esta reunião?')) return;

@@ -77,9 +77,9 @@ const SEED_SETORES = {
   'ADULTO': ['UCP 5º ANDAR TORRE A','5º ANDAR TORRE A','6º ANDAR TORRE A','7º ANDAR TORRE A',
              '5º ANDAR TORRE B','6º ANDAR TORRE B','6º ANDAR TORRE C','7º ANDAR TORRE C',
              'UIB','UTI 2','UTI 3','UTI 4','UTI 5'],
-  'NEONATOLOGIA': ['UTIN 1','UTIN 2','UTIN 3','UTIN 4','UCINCO 1','UCINCO 2','UCINCO 3','UCINCA','FOLLOW-UP'],
+  'NEONATOLOGIA': ['UTIN 1','UTIN 2','UTIN 3','UTIN 4','UCINCO 1','UCINCO 2','UCINCO 3','UCINCA'],
   'CARDIOPEDIATRIA': ['CARDIO PED ENFERMARIA','SEMI INTENSIVA CARDIO PED'],
-  'AMBULATÓRIO': ['CABEÇA E PESCOÇO','GERIATRIA','BARIÁTRICA']
+  'AMBULATÓRIO': ['CABEÇA E PESCOÇO','GERIATRIA','BARIÁTRICA','FOLLOW-UP']
 };
 
 // categoria -> { tipoServico ('' = todos) -> [valores] }
@@ -849,7 +849,23 @@ function saveEpisodio(token, obj) {
     const vFim = String(dados.vaaConclusao || '').slice(0, 10);
     if (vIni && vFim && vFim < vIni)
       return { ok: false, erro: 'A conclusão do desmame de VAA não pode ser anterior ao início.' };
-    if (obj.id) {
+      
+    // Auto-cadastrar ou localizar paciente se não enviado pacienteId
+    if (!dados.pacienteId && obj.prontuario && obj.nomePaciente) {
+      const pront = String(obj.prontuario).trim();
+      let p = sheetToObjects_('Pacientes').filter(function(x) { return String(x.prontuario).trim() === pront; })[0];
+      if (p) {
+        dados.pacienteId = p.id;
+      } else {
+        const pId = nextId_('Pacientes');
+        appendRow_('Pacientes', {
+          id: pId, nome: up_(obj.nomePaciente), prontuario: pront,
+          sexo: obj.sexo || '', dataNascimento: obj.dataNascimento || '',
+          criadoEm: new Date(), criadoPor: sess.nome
+        });
+        dados.pacienteId = pId;
+      }
+    }
       const e = byId_('Episodios', obj.id);
       if (!e) return { ok: false, erro: 'Registro não encontrado.' };
       if (obj.status) dados.status = obj.status;
@@ -1052,6 +1068,20 @@ function saveTriagem(token, obj) {
     if (Array.isArray(dados.fatoresRisco)) dados.fatoresRisco = dados.fatoresRisco.join(' | ');
     if (Array.isArray(dados.procedimentos)) dados.procedimentos = dados.procedimentos.join(' | ');
     if (dados.nome) dados.nome = up_(dados.nome);
+    
+    // Auto-cadastrar/atualizar paciente globalmente
+    if (dados.prontuario && dados.nome) {
+       const pront = String(dados.prontuario).trim();
+       let p = sheetToObjects_('Pacientes').filter(function(x) { return String(x.prontuario).trim() === pront; })[0];
+       if (!p) {
+         appendRow_('Pacientes', {
+           id: nextId_('Pacientes'), nome: dados.nome, prontuario: pront,
+           sexo: dados.sexo || '', dataNascimento: dados.dataNascimento || '',
+           criadoEm: new Date(), criadoPor: sess.nome
+         });
+       }
+    }
+    
     if (obj.id) {
       const t = byId_('Triagens', obj.id);
       if (!t) return { ok: false, erro: 'Registro não encontrado.' };
@@ -1126,13 +1156,14 @@ function saveReuniao(token, obj) {
       const r = byId_('Reunioes', obj.id);
       if (!r) return { ok: false, erro: 'Registro não encontrado.' };
       updateRow_('Reunioes', r._row, { data: obj.data, setor: obj.setor,
-        fonoaudiologo: obj.fonoaudiologo, participantes: obj.participantes, pauta: obj.pauta });
+        fonoaudiologo: Array.isArray(obj.fonoaudiologo) ? obj.fonoaudiologo.join(' | ') : obj.fonoaudiologo,
+        participantes: Number(obj.participantes) || 0, pauta: obj.pauta });
       return { ok: true, id: obj.id };
     }
     const id = nextId_('Reunioes');
     appendRow_('Reunioes', {
       id: id, data: obj.data || isoDate_(new Date()), setor: obj.setor || '',
-      fonoaudiologo: obj.fonoaudiologo || sess.nome,
+      fonoaudiologo: Array.isArray(obj.fonoaudiologo) ? obj.fonoaudiologo.join(' | ') : (obj.fonoaudiologo || sess.nome),
       participantes: Number(obj.participantes) || 0, pauta: obj.pauta || '',
       criadoEm: new Date(), criadoPor: sess.nome
     });
