@@ -866,6 +866,8 @@ function saveEpisodio(token, obj) {
         dados.pacienteId = pId;
       }
     }
+    
+    if (obj.id) {
       const e = byId_('Episodios', obj.id);
       if (!e) return { ok: false, erro: 'Registro não encontrado.' };
       if (obj.status) dados.status = obj.status;
