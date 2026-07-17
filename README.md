@@ -17,9 +17,14 @@ ser implantado em qualquer hospital sem alterar código.
   oral (entrou com sonda × saiu em VO), desmames de VAA iniciados/concluídos com
   tempo médio e justificativas, permanência média, tempo até o 1º atendimento,
   atendimentos por paciente, ganho na escala FOIS, decanulações com tempo médio,
-  óbitos, desfecho da saída, hipóteses diagnósticas mais frequentes, origem da
-  solicitação, idade gestacional e produção mês a mês — tudo com filtro de
-  período/serviço e exportação CSV.
+  óbitos, alta fonoaudiológica (ambulatório), taxa de atendimentos extra (carga
+  fora da rotina, por profissional), desfecho da saída, hipóteses diagnósticas
+  mais frequentes, origem da solicitação, idade gestacional, resultados e
+  fatores de risco da triagem neonatal (orelhinha/linguinha), local da
+  frenotomia, conduta no retorno e reuniões por setor/fonoaudiólogo — tudo com
+  filtro de período/serviço, exportação CSV e um **demonstrativo mensal**
+  (admissões, saídas, óbitos, atendimentos, procedimentos, desmames concluídos,
+  decanulações, triagens e reuniões por mês).
 - **Pacientes internados (censo)** — fila por serviço e setor, ordenada por
   prioridade, com ficha clínica completa e grade diária de atendimentos
   (equivalente às colunas de datas das planilhas).
