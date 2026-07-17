@@ -12,6 +12,14 @@ ser implantado em qualquer hospital sem alterar código.
   (admissão → alta), tempo médio de desmame de VAA, decanulações, triagens e
   reuniões, com gráficos de procedimentos por dia, por setor, por profissional
   e por tipo.
+- **Relatórios** — indicadores de resultado que as planilhas nunca mostraram,
+  calculados dos campos que a equipe já preenche: taxa de transição para via
+  oral (entrou com sonda × saiu em VO), desmames de VAA iniciados/concluídos com
+  tempo médio e justificativas, permanência média, tempo até o 1º atendimento,
+  atendimentos por paciente, ganho na escala FOIS, decanulações com tempo médio,
+  óbitos, desfecho da saída, hipóteses diagnósticas mais frequentes, origem da
+  solicitação, idade gestacional e produção mês a mês — tudo com filtro de
+  período/serviço e exportação CSV.
 - **Pacientes internados (censo)** — fila por serviço e setor, ordenada por
   prioridade, com ficha clínica completa e grade diária de atendimentos
   (equivalente às colunas de datas das planilhas).
@@ -23,7 +31,8 @@ ser implantado em qualquer hospital sem alterar código.
   com retornos já registrados.
 - **Reuniões** — data, setor/local, fonoaudiólogo, participantes e pauta.
 - **Consolidado** — matrizes por setor (faixa etária, sexo, perfil de solicitação,
-  FOIS admissão/alta, consistência da alta), com filtro de período e exportação CSV —
+  prioridade, dieta na admissão, utensílio, FOIS admissão/alta, consistência da
+  alta e justificativa do desmame de VAA), com filtro de período e exportação CSV —
   equivalente à aba CONSOLIDADO das planilhas, sem `#REF!`.
 - **Configurações** — nome do hospital, serviços, setores, todas as listas clínicas
   (dietas, procedimentos, prioridades, resultados de exame, fatores de risco…) e

@@ -1412,10 +1412,218 @@ function consolidado(token, filtro) {
         const p = pacientes[e.pacienteId]; return p && p.sexo ? String(p.sexo).toUpperCase() : null;
       }),
       perfil: matriz(solicitacoes, function(e) { return e.solicitacao || null; }),
+      prioridade: matriz(listaVals('PRIORIDADE'), function(e) { return e.prioridade || null; }),
+      dietaAdmissao: matriz(listaVals('DIETA_ADMISSAO'), function(e) { return e.dietaAdmissao || null; }),
+      utensilio: matriz(listaVals('UTENSILIO'), function(e) { return e.utensilio || null; }),
       foisAdmissao: matriz(nivFois, function(e) { return e.foisAdmissao || null; }),
       foisAlta: matriz(nivFois, function(e) { return e.foisAlta || null; }),
-      dietaSaida: matriz(dietasSaida, function(e) { return e.dietaSaida || null; })
+      dietaSaida: matriz(dietasSaida, function(e) { return e.dietaSaida || null; }),
+      justificativaDesmame: matriz(listaVals('JUSTIFICATIVA_DESMAME'), function(e) { return e.vaaJustificativa || null; })
     }
+  };
+}
+
+/* ============================ RELATÓRIOS GERENCIAIS ============================ */
+
+/* Indicadores de RESULTADO que as planilhas nunca mostraram — cruzam campos que
+   o serviço já preenche mas nenhuma tela usava: dieta admissão -> saída (taxa de
+   transição para via oral), desmame de VAA (iniciados/concluídos/tempo/justi-
+   ficativa), permanência, tempo até o 1º atendimento, desfechos de alta, perfil
+   da demanda (hipóteses, origem, idade gestacional) e produção mês a mês. */
+function relatorios(token, filtro) {
+  sessao_(token);
+  filtro = filtro || {};
+  const de = filtro.de || '';
+  const ate = filtro.ate || '';
+  const servicoId = filtro.servicoId ? Number(filtro.servicoId) : null;
+
+  const stOf = setorResolver_();
+  let episodios = sheetToObjects_('Episodios');
+  if (servicoId) episodios = episodios.filter(function(e) {
+    return servicoDe_(e, stOf(e.setorId)) === servicoId; });
+  const epIdx = indexById_(episodios);
+
+  // 1º atendimento e nº de atendimentos por episódio (todas as datas)
+  const primeiroAtd = {}, nAtd = {};
+  const atendTodos = sheetToObjects_('Atendimentos');
+  atendTodos.forEach(function(a) {
+    const k = Number(a.episodioId);
+    if (!epIdx[k]) return;
+    const d = String(a.data).slice(0, 10);
+    if (d && (!primeiroAtd[k] || d < primeiroAtd[k])) primeiroAtd[k] = d;
+    nAtd[k] = (nAtd[k] || 0) + 1;
+  });
+
+  const admitidos = episodios.filter(function(e) { return dentroPeriodo_(e.dataAdmissao, de, ate); });
+  const saidas = episodios.filter(function(e) { return e.dataSaida && dentroPeriodo_(e.dataSaida, de, ate); });
+  const movimento = episodios.filter(function(e) {
+    return dentroPeriodo_(e.dataAdmissao, de, ate) || (e.dataSaida && dentroPeriodo_(e.dataSaida, de, ate));
+  });
+
+  const dias = function(a, b) {
+    const d = (new Date(String(b).slice(0, 10)) - new Date(String(a).slice(0, 10))) / 86400000;
+    return isNaN(d) ? null : d;
+  };
+
+  // ------ desfecho da saída, classificado pela dieta ------
+  const temSonda = function(s) { return /SNE|SNG|GTT|SOG|NPT/.test(s); };
+  const desfechoDe = function(e) {
+    const d = String(e.dietaSaida || '').toUpperCase();
+    if (!d) return 'NÃO INFORMADO';
+    if (d.indexOf('ÓBITO') >= 0 || d.indexOf('OBITO') >= 0) return 'ÓBITO';
+    if (d.indexOf('TRANSIÇÃO') >= 0 || d.indexOf('TRANSICAO') >= 0 || d.indexOf('MISTA') >= 0)
+      return 'DIETA MISTA (VAA + VO)';
+    if (temSonda(d)) return 'VIA ALTERNATIVA (SONDA/GTT)';
+    if (d.indexOf('ZERO') >= 0) return 'DIETA ZERO';
+    return 'VIA ORAL';
+  };
+  const desfechos = {};
+  let obitos = 0;
+  saidas.forEach(function(e) {
+    const c = desfechoDe(e);
+    desfechos[c] = (desfechos[c] || 0) + 1;
+    if (c === 'ÓBITO') obitos++;
+  });
+
+  // ------ reabilitação: entrou com via alternativa/zero e saiu em via oral ------
+  let vaaEntrada = 0, vaaParaVO = 0;
+  saidas.forEach(function(e) {
+    const adm = String(e.dietaAdmissao || '').toUpperCase();
+    if (!adm || !(temSonda(adm) || adm.indexOf('ZERO') >= 0)) return;
+    vaaEntrada++;
+    if (desfechoDe(e) === 'VIA ORAL') vaaParaVO++;
+  });
+
+  // ------ permanência, intensidade e tempo de resposta ------
+  let somaPerm = 0, nPerm = 0, somaAtdPac = 0, nAtdPac = 0;
+  saidas.forEach(function(e) {
+    const d = dias(e.dataAdmissao, e.dataSaida);
+    if (d !== null && d >= 0) { somaPerm += d; nPerm++; }
+    somaAtdPac += (nAtd[Number(e.id)] || 0); nAtdPac++;
+  });
+  let somaResp = 0, nResp = 0;
+  admitidos.forEach(function(e) {
+    const p = primeiroAtd[Number(e.id)];
+    if (!p || !e.dataAdmissao) return;
+    const d = dias(e.dataAdmissao, p);
+    if (d !== null && d >= 0) { somaResp += d; nResp++; }
+  });
+
+  // ------ ganho na escala FOIS (alta - admissão) ------
+  const nivel = function(v) { const m = String(v).match(/N[ÍI]VEL\s*(\d)/i); return m ? Number(m[1]) : null; };
+  let somaGanho = 0, nGanho = 0;
+  saidas.forEach(function(e) {
+    const a = nivel(e.foisAdmissao), b = nivel(e.foisAlta);
+    if (a && b) { somaGanho += (b - a); nGanho++; }
+  });
+
+  // ------ desmame de VAA ------
+  const iniciados = episodios.filter(function(e) { return dentroPeriodo_(e.vaaInicio, de, ate); }).length;
+  let concluidos = 0, somaDesm = 0, nDesm = 0;
+  episodios.forEach(function(e) {
+    if (!dentroPeriodo_(e.vaaConclusao, de, ate)) return;
+    concluidos++;
+    if (e.vaaInicio) {
+      const d = dias(e.vaaInicio, e.vaaConclusao);
+      if (d !== null && d >= 0) { somaDesm += d; nDesm++; }
+    }
+  });
+  const justDesmame = {};
+  movimento.forEach(function(e) {
+    const j = String(e.vaaJustificativa || '').trim();
+    if (j) justDesmame[j] = (justDesmame[j] || 0) + 1;
+  });
+
+  // ------ decanulação ------
+  const emProtocolo = movimento.filter(function(e) {
+    return String(e.decanulacaoProtocolo).toUpperCase() === 'SIM'; });
+  let decanulados = 0, somaDec = 0, nDec = 0;
+  emProtocolo.forEach(function(e) {
+    if (!e.decanulacaoData) return;
+    decanulados++;
+    if (e.decanulacaoAvaliacao) {
+      const d = dias(e.decanulacaoAvaliacao, e.decanulacaoData);
+      if (d !== null && d >= 0) { somaDec += d; nDec++; }
+    }
+  });
+
+  // ------ perfil da demanda (admitidos no período) ------
+  const hipoteses = {}, origens = {}, prioridades = {}, igBandas = {};
+  const igDe = function(v) {
+    const s = String(v || '').toUpperCase().trim();
+    if (!s) return null;
+    if (s.indexOf('RNT') >= 0 || s.indexOf('TERMO') >= 0) return 'A TERMO (RNT)';
+    const m = s.match(/(\d+)/);
+    if (!m) return null;
+    const w = Number(m[1]);
+    if (w >= 37) return 'A TERMO (≥37s)';
+    if (w >= 32) return 'PREMATURO (32–36s)';
+    if (w >= 28) return 'MUITO PREMATURO (28–31s)';
+    if (w >= 20) return 'PREMATURO EXTREMO (<28s)';
+    return null;
+  };
+  admitidos.forEach(function(e) {
+    String(e.hipoteseDiagnostica || '').split(/[|;+]/).forEach(function(h) {
+      h = h.replace(/\?/g, '').trim().toUpperCase();
+      if (h) hipoteses[h] = (hipoteses[h] || 0) + 1;
+    });
+    const o = String(e.solicitacao || '').trim();
+    if (o) origens[o] = (origens[o] || 0) + 1;
+    const p = String(e.prioridade || '').trim();
+    if (p) prioridades[p] = (prioridades[p] || 0) + 1;
+    const g = igDe(e.idadeGestacional);
+    if (g) igBandas[g] = (igBandas[g] || 0) + 1;
+  });
+
+  // ------ produção mês a mês ------
+  const meses = {};
+  const mesReg = function(m) {
+    if (!/^\d{4}-\d{2}$/.test(m)) return null;
+    if (!meses[m]) meses[m] = { mes: m, admissoes: 0, saidas: 0, atendimentos: 0, procedimentos: 0 };
+    return meses[m];
+  };
+  admitidos.forEach(function(e) { const r = mesReg(String(e.dataAdmissao || '').slice(0, 7)); if (r) r.admissoes++; });
+  saidas.forEach(function(e) { const r = mesReg(String(e.dataSaida || '').slice(0, 7)); if (r) r.saidas++; });
+  atendTodos.forEach(function(a) {
+    if (!epIdx[a.episodioId] || !dentroPeriodo_(a.data, de, ate)) return;
+    const r = mesReg(String(a.data).slice(0, 7));
+    if (!r) return;
+    r.atendimentos++;
+    const procs = String(a.procedimentos || '').split(' | ').filter(function(x) { return x; });
+    r.procedimentos += Math.max(1, procs.length);
+  });
+  const serieMensal = Object.keys(meses).sort().map(function(m) { return meses[m]; });
+
+  const top = function(obj, n) {
+    return Object.keys(obj).map(function(k) { return { nome: k, total: obj[k] }; })
+      .sort(function(a, b) { return b.total - a.total; }).slice(0, n);
+  };
+  const media = function(s, n) { return n ? +(s / n).toFixed(1) : null; };
+
+  return { ok: true,
+    periodo: { de: de, ate: ate },
+    kpis: {
+      admissoes: admitidos.length,
+      saidas: saidas.length,
+      obitos: obitos,
+      permanenciaMedia: media(somaPerm, nPerm), permanenciaN: nPerm,
+      atendPorPaciente: media(somaAtdPac, nAtdPac),
+      tempoResposta: media(somaResp, nResp), tempoRespostaN: nResp,
+      vaaEntrada: vaaEntrada, vaaParaVO: vaaParaVO,
+      taxaViaOral: vaaEntrada ? Math.round(vaaParaVO / vaaEntrada * 100) : null,
+      desmameIniciados: iniciados, desmameConcluidos: concluidos,
+      desmameTempoMedio: media(somaDesm, nDesm),
+      foisGanhoMedio: media(somaGanho, nGanho), foisGanhoN: nGanho,
+      decanulacaoProtocolo: emProtocolo.length, decanulacaoConcluidas: decanulados,
+      decanulacaoTempoMedio: media(somaDec, nDec)
+    },
+    desfechos: top(desfechos, 8),
+    justificativaDesmame: top(justDesmame, 12),
+    hipoteses: top(hipoteses, 12),
+    origens: top(origens, 8),
+    prioridades: top(prioridades, 12),
+    idadeGestacional: top(igBandas, 6),
+    serieMensal: serieMensal
   };
 }
 
