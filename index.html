@@ -603,7 +603,7 @@ const S = { token:null, user:null, dados:null, view:null };
 /* funções de leitura (não alteram a planilha). Qualquer chamada FORA desta lista
    é tratada como escrita e limpa o cache de views (VIEWCACHE) ao concluir. */
 const READONLY_FN = {dashboard:1,listEpisodios:1,listPacientes:1,listTriagens:1,
-  listReunioes:1,consolidado:1,getFicha:1,listUsuarios:1,apiBootstrap:1,login:1,logout:1};
+  listReunioes:1,consolidado:1,relatorios:1,getFicha:1,listUsuarios:1,apiBootstrap:1,login:1,logout:1};
 
 function gs(fn){
   const args = Array.prototype.slice.call(arguments,1);
@@ -668,7 +668,8 @@ function prefetchViews(){
     ['listPacientes',[S.token,'']],
     ['listTriagens',[S.token,{tipo:TRI.tab,q:TRI.q||null}]],
     ['listReunioes',[S.token]],
-    ['consolidado',[S.token,{de:inicioMes(),ate:hoje(),servicoId:null}]]
+    ['consolidado',[S.token,{de:inicioMes(),ate:hoje(),servicoId:null}]],
+    ['relatorios',[S.token,{de:inicioMes(),ate:hoje(),servicoId:null}]]
   ];
   const idle=window.requestIdleCallback||function(f){return setTimeout(f,300);};
   let i=0;
@@ -857,6 +858,7 @@ const ICONS = {
   tri:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a5 5 0 0 1 5 5c0 2-1 3-1 5h-8c0-2-1-3-1-5a5 5 0 0 1 5-5z"/><path d="M9.5 17h5M10.5 20.5h3"/></svg>',
   reun:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="7" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M2.5 20c.7-3 2.9-4.6 5.5-4.6s4.8 1.6 5.5 4.6"/><path d="M14.5 15.7c2.5-.6 5.5.6 6.5 3.8"/></svg>',
   cons:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-8M21 20H3"/></svg>',
+  rel:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 17v-3M12 17v-5M16 17v-2"/></svg>',
   cfg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z"/></svg>',
   out:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>',
   more:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>',
@@ -868,6 +870,7 @@ const ICONS = {
 /* itens que ficam no sheet "Mais" da navegação mobile */
 function moreNavItems(){
   const m=[
+    {id:'relatorios',ic:'rel',t:'Relatórios'},
     {id:'consolidado',ic:'cons',t:'Consolidado'},
     {id:'pacientes',ic:'pac',t:'Cadastro de pacientes'}
   ];
@@ -879,6 +882,7 @@ function renderShell(){
   const navs=[
     {sect:'Visão geral'},
     {id:'dashboard',ic:'dash',t:'Dashboard'},
+    {id:'relatorios',ic:'rel',t:'Relatórios'},
     {id:'consolidado',ic:'cons',t:'Consolidado'},
     {sect:'Assistência'},
     {id:'censo',ic:'censo',t:'Pacientes internados'},
@@ -968,7 +972,7 @@ function go(v){
   if(m){ m.classList.remove('vt'); void m.offsetWidth; m.classList.add('vt'); }
   window.scrollTo(0,0);
   const V={dashboard:vDashboard,censo:vCenso,pacientes:vPacientes,triagem:vTriagem,
-    reunioes:vReunioes,consolidado:vConsolidado,config:vConfig};
+    reunioes:vReunioes,consolidado:vConsolidado,relatorios:vRelatorios,config:vConfig};
   (V[v]||vDashboard)();
 }
 
@@ -1097,7 +1101,11 @@ const KPI_ICONS={
   vaa:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>',
   decan:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>',
   tri:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a5 5 0 0 1 5 5c0 2-1 3-1 5h-8c0-2-1-3-1-5a5 5 0 0 1 5-5z"/><path d="M9.5 17h5M10.5 20.5h3"/></svg>',
-  reun:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="7" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M2.5 20c.7-3 2.9-4.6 5.5-4.6s4.8 1.6 5.5 4.6"/></svg>'
+  reun:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="7" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M2.5 20c.7-3 2.9-4.6 5.5-4.6s4.8 1.6 5.5 4.6"/></svg>',
+  vo:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 8h1.5a3.5 3.5 0 0 1 0 7H17"/><path d="M4 8h13v8a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V8z"/></svg>',
+  perm:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5v14"/><path d="M3 9h16a2 2 0 0 1 2 2v8"/><path d="M3 16h18"/><circle cx="7" cy="12.5" r="1.4"/></svg>',
+  resp:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+  obito:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20.5l-7-7c-1.5-1.5-3-3.2-3-5.5A5.5 5.5 0 0 1 7.5 2.5c1.8 0 3 .9 4.5 2.5 1.5-1.6 2.7-2.5 4.5-2.5A5.5 5.5 0 0 1 22 8c0 2.3-1.5 4-3 5.5z"/></svg>'
 };
 
 function deltaHtml(cur,prev){
@@ -1816,6 +1824,153 @@ function modalReuniao(x){
   });
 }
 
+/* ========================= RELATÓRIOS ========================= */
+let REL_DATA=null;
+const REL={de:null,ate:null,servicoId:''};
+function vRelatorios(){
+  const svs=servicos();
+  if(REL.de===null) REL.de=inicioMes();   // só usa o padrão (mês atual) na primeira vez
+  if(REL.ate===null) REL.ate=hoje();
+  $('#main').innerHTML=
+  '<div class="topbar">'+
+  '<div class="topbar-title"><h2>Relatórios</h2>'+
+  '<div class="sub">Indicadores de resultado — transição para via oral, desmame de VAA, permanência e produção mensal</div></div>'+
+  '<div class="tools">'+
+    quickPeriodsHTML('rl-qp')+
+    '<div class="tools-sep"></div>'+
+    '<div class="filter-wrap">'+
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 8h1m4 0h1M9 12h1m4 0h1M9 16h1m4 0h1"/></svg>'+
+      '<select class="sel" id="rl-serv"><option value="">Todos os serviços</option>'+
+        svs.map(function(s){return '<option value="'+s.id+'"'+(String(s.id)===String(REL.servicoId)?' selected':'')+'>'+esc(s.nome)+'</option>';}).join('')+'</select>'+
+    '</div>'+
+    '<div class="filter-wrap">'+
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>'+
+      '<input type="date" class="sel" id="rl-de" value="'+REL.de+'">'+
+    '</div>'+
+    '<div class="filter-wrap">'+
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>'+
+      '<input type="date" class="sel" id="rl-ate" value="'+REL.ate+'">'+
+    '</div>'+
+    '<button class="btn ghost cs-action" id="rl-csv">'+
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'+
+      'Exportar CSV</button>'+
+  '</div></div><div id="rl-body">'+skeletonKpis(8)+skeletonCards(4)+'</div>';
+  const applyRel=debounce(function(){ markFilters(); loadRelatorios(); },350);
+  const syncRel=bindQuickPeriods('#rl-qp','#rl-de','#rl-ate',function(){ loadRelatorios(); });
+  syncRel(); markFilters();
+  $('#rl-serv').addEventListener('change',function(){ REL.servicoId=$('#rl-serv').value; markFilters(); loadRelatorios(); });
+  $('#rl-de').addEventListener('change',function(){ REL.de=$('#rl-de').value; syncRel(); applyRel(); });
+  $('#rl-ate').addEventListener('change',function(){ REL.ate=$('#rl-ate').value; syncRel(); applyRel(); });
+  $('#rl-csv').addEventListener('click',exportRelCSV);
+  loadRelatorios();
+}
+
+function loadRelatorios(){
+  $('#rl-body').innerHTML=skeletonKpis(8)+skeletonCards(4);
+  swrGs('relatorios',[S.token,{de:$('#rl-de').value,ate:$('#rl-ate').value,
+    servicoId:$('#rl-serv').value||null}],'relatorios',function(r){
+    REL_DATA=r;
+    const k=r.kpis;
+    if(!k.admissoes&&!k.saidas&&!r.serieMensal.length){
+      $('#rl-body').innerHTML='<div class="card">'+emptyState('chart','Sem dados no período',
+        'Nenhum paciente com movimento no período selecionado.')+'</div>';
+      return;
+    }
+    const dd=function(v){ return v===null?'—':v+' <small>dias</small>'; };
+    $('#rl-body').innerHTML=
+    '<div class="grid kpis">'+
+      kpi('Transição p/ via oral',(k.taxaViaOral===null?'—':k.taxaViaOral+'<small>%</small>'),
+        (k.vaaEntrada?k.vaaParaVO+' de '+k.vaaEntrada+' que entraram com VAA':'sem saídas admitidas com VAA'),'hero','vo')+
+      kpi('Desmames de VAA',k.desmameConcluidos+' <small>/ '+k.desmameIniciados+'</small>',
+        'concluídos / iniciados'+(k.desmameTempoMedio!==null?' · média '+k.desmameTempoMedio+' dias':''),'hero','vaa')+
+      kpi('Permanência média',dd(k.permanenciaMedia),k.permanenciaN+' pacientes com alta no período',null,'perm')+
+      kpi('Tempo até 1º atendimento',dd(k.tempoResposta),'da admissão à 1ª visita da fono',null,'resp')+
+      kpi('Atendimentos por paciente',(k.atendPorPaciente===null?'—':k.atendPorPaciente),'média entre as saídas do período',null,'atend')+
+      kpi('Ganho na escala FOIS',(k.foisGanhoMedio===null?'—':(k.foisGanhoMedio>0?'+':'')+k.foisGanhoMedio+' <small>níveis</small>'),
+        k.foisGanhoN+' pacientes com FOIS na admissão e alta',null,'fois')+
+      kpi('Decanulações',k.decanulacaoConcluidas+' <small>/ '+k.decanulacaoProtocolo+'</small>',
+        'concluídas / em protocolo'+(k.decanulacaoTempoMedio!==null?' · média '+k.decanulacaoTempoMedio+' dias':''),null,'decan')+
+      kpi('Óbitos',k.obitos,'entre '+k.saidas+' saídas no período',null,'obito')+
+    '</div>'+
+    '<div class="grid two" style="margin-top:14px">'+
+      relSec('Desfecho na saída (dieta)',r.desfechos)+
+      relSec('Justificativa do desmame de VAA',r.justificativaDesmame,true)+
+      relSec('Hipóteses diagnósticas mais frequentes',r.hipoteses)+
+      relSec('Origem da solicitação',r.origens,true)+
+      relSec('Idade gestacional na admissão',r.idadeGestacional)+
+      relSec('Prioridade de atendimento',r.prioridades,true)+
+      '<div class="card panel" style="grid-column:1/-1"><h3>Produção mensal</h3>'+mensalTable(r.serieMensal)+'</div>'+
+    '</div>';
+    respTables($('#rl-body'));
+  });
+}
+
+/* card de gráfico de barras que some quando a seção não tem dados
+   (ex.: idade gestacional em serviço adulto, prioridade em neo) */
+function relSec(t,arr,alt){
+  if(!arr||!arr.length||!arr.some(function(a){return a.total>0;})) return '';
+  return '<div class="card panel"><h3>'+esc(t)+'</h3>'+hbars(arr,alt)+'</div>';
+}
+
+function fmtMes(m){ const p=String(m||'').split('-'); return p.length===2?p[1]+'/'+p[0]:esc(m); }
+function mensalTable(serie){
+  if(!serie||!serie.length) return emptyState('chart','Sem produção no período','Ajuste os filtros de data ou serviço.');
+  const tot={admissoes:0,saidas:0,atendimentos:0,procedimentos:0};
+  serie.forEach(function(m){ tot.admissoes+=m.admissoes; tot.saidas+=m.saidas;
+    tot.atendimentos+=m.atendimentos; tot.procedimentos+=m.procedimentos; });
+  return '<div class="tbl-wrap"><table><thead><tr><th>Mês</th><th class="r">Admissões</th>'+
+    '<th class="r">Saídas</th><th class="r">Atendimentos</th><th class="r">Procedimentos</th></tr></thead><tbody>'+
+    serie.map(function(m){
+      return '<tr><td><b>'+fmtMes(m.mes)+'</b></td><td class="r num">'+m.admissoes+'</td>'+
+        '<td class="r num">'+m.saidas+'</td><td class="r num">'+m.atendimentos+'</td>'+
+        '<td class="r num">'+m.procedimentos+'</td></tr>';
+    }).join('')+
+    '<tr><td><b>Total</b></td><td class="r num"><b>'+tot.admissoes+'</b></td><td class="r num"><b>'+tot.saidas+'</b></td>'+
+    '<td class="r num"><b>'+tot.atendimentos+'</b></td><td class="r num"><b>'+tot.procedimentos+'</b></td></tr>'+
+  '</tbody></table></div>';
+}
+
+function exportRelCSV(){
+  if(!REL_DATA){ toast('Aguarde o relatório carregar.'); return; }
+  const r=REL_DATA,k=r.kpis;
+  const linhas=[];
+  const push=function(arr){ linhas.push(arr.map(function(c){
+    c=String(c==null?'':c); return /[";\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c; }).join(';')); };
+  push(['RELATÓRIO GERENCIAL',fmtD(r.periodo.de)+' a '+fmtD(r.periodo.ate)]);
+  push([]);
+  push(['INDICADOR','VALOR','BASE']);
+  push(['Admissões no período',k.admissoes,'']);
+  push(['Saídas no período',k.saidas,'']);
+  push(['Óbitos',k.obitos,'']);
+  push(['Transição para via oral (%)',k.taxaViaOral===null?'—':k.taxaViaOral,k.vaaParaVO+' de '+k.vaaEntrada+' admitidos com VAA']);
+  push(['Desmames de VAA iniciados',k.desmameIniciados,'']);
+  push(['Desmames de VAA concluídos',k.desmameConcluidos,'']);
+  push(['Tempo médio de desmame (dias)',k.desmameTempoMedio===null?'—':k.desmameTempoMedio,'']);
+  push(['Permanência média (dias)',k.permanenciaMedia===null?'—':k.permanenciaMedia,k.permanenciaN+' pacientes']);
+  push(['Tempo até 1º atendimento (dias)',k.tempoResposta===null?'—':k.tempoResposta,k.tempoRespostaN+' pacientes']);
+  push(['Atendimentos por paciente (média)',k.atendPorPaciente===null?'—':k.atendPorPaciente,'']);
+  push(['Ganho médio na escala FOIS',k.foisGanhoMedio===null?'—':k.foisGanhoMedio,k.foisGanhoN+' pacientes']);
+  push(['Decanulações concluídas',k.decanulacaoConcluidas,k.decanulacaoProtocolo+' em protocolo']);
+  push(['Tempo médio até decanular (dias)',k.decanulacaoTempoMedio===null?'—':k.decanulacaoTempoMedio,'']);
+  const secoes=[['DESFECHO NA SAÍDA',r.desfechos],['JUSTIFICATIVA DO DESMAME',r.justificativaDesmame],
+    ['HIPÓTESES DIAGNÓSTICAS',r.hipoteses],['ORIGEM DA SOLICITAÇÃO',r.origens],
+    ['IDADE GESTACIONAL',r.idadeGestacional],['PRIORIDADE',r.prioridades]];
+  secoes.forEach(function(s){
+    if(!s[1]||!s[1].length) return;
+    push([]); push([s[0],'TOTAL']);
+    s[1].forEach(function(i){ push([i.nome,i.total]); });
+  });
+  if(r.serieMensal.length){
+    push([]); push(['MÊS','ADMISSÕES','SAÍDAS','ATENDIMENTOS','PROCEDIMENTOS']);
+    r.serieMensal.forEach(function(m){ push([fmtMes(m.mes),m.admissoes,m.saidas,m.atendimentos,m.procedimentos]); });
+  }
+  const blob=new Blob(['﻿'+linhas.join('\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='relatorio_'+(r.periodo.de||'inicio')+'_'+(r.periodo.ate||'fim')+'.csv';
+  a.click();
+}
+
 /* ========================= CONSOLIDADO ========================= */
 let CONS_DATA=null;
 const CONS={de:null,ate:null,servicoId:''};
@@ -1871,10 +2026,14 @@ function loadConsolidado(){
       {k:'idade',t:'Faixa etária'},
       {k:'sexo',t:'Sexo'},
       {k:'perfil',t:'Perfil de solicitação'},
+      {k:'prioridade',t:'Prioridade de atendimento'},
+      {k:'dietaAdmissao',t:'Dieta na admissão'},
+      {k:'utensilio',t:'Utensílio utilizado'},
       {k:'foisAdmissao',t:'Escala FOIS — admissão'},
       {k:'foisAlta',t:'Escala FOIS — alta'},
-      {k:'dietaSaida',t:'Consistência da alta / permanência'}
-    ];
+      {k:'dietaSaida',t:'Consistência da alta / permanência'},
+      {k:'justificativaDesmame',t:'Desmame de VAA — justificativa da conclusão'}
+    ].filter(function(s){ return r.matrizes[s.k]; });
     $('#cs-body').innerHTML=
     '<div class="card panel" style="margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">'+
       '<div><b class="num">'+r.nEpisodios+'</b> pacientes no período '+fmtD(r.periodo.de)+' – '+fmtD(r.periodo.ate)+'</div>'+
@@ -1927,9 +2086,11 @@ function exportCSV(){
   const push=function(arr){ linhas.push(arr.map(function(c){
     c=String(c==null?'':c); return /[";\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c; }).join(';')); };
   push(['CONSOLIDADO',fmtD(r.periodo.de)+' a '+fmtD(r.periodo.ate)]);
-  const secoes={idade:'FAIXA ETÁRIA',sexo:'SEXO',perfil:'PERFIL',foisAdmissao:'FOIS ADMISSÃO',
-    foisAlta:'FOIS ALTA',dietaSaida:'CONSISTÊNCIA DA ALTA'};
+  const secoes={idade:'FAIXA ETÁRIA',sexo:'SEXO',perfil:'PERFIL',prioridade:'PRIORIDADE',
+    dietaAdmissao:'DIETA NA ADMISSÃO',utensilio:'UTENSÍLIO',foisAdmissao:'FOIS ADMISSÃO',
+    foisAlta:'FOIS ALTA',dietaSaida:'CONSISTÊNCIA DA ALTA',justificativaDesmame:'DESMAME DE VAA — JUSTIFICATIVA'};
   Object.keys(secoes).forEach(function(k){
+    if(!r.matrizes[k]) return;
     push([]); push([secoes[k]].concat(r.setores.map(function(c){return c.nome;})).concat(['TOTAL']));
     r.matrizes[k].linhas.forEach(function(l){
       if(!l.total) return;
