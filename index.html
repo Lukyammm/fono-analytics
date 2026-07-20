@@ -1834,7 +1834,7 @@ function vRelatorios(){
   $('#main').innerHTML=
   '<div class="topbar">'+
   '<div class="topbar-title"><h2>Relatórios</h2>'+
-  '<div class="sub">Indicadores de resultado — transição para via oral, desmame de VAA, permanência e produção mensal</div></div>'+
+  '<div class="sub">Indicadores de resultado — transição para via oral, desmame de VAA, triagem neonatal e demonstrativo mensal</div></div>'+
   '<div class="tools">'+
     quickPeriodsHTML('rl-qp')+
     '<div class="tools-sep"></div>'+
@@ -1854,7 +1854,7 @@ function vRelatorios(){
     '<button class="btn ghost cs-action" id="rl-csv">'+
       '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'+
       'Exportar CSV</button>'+
-  '</div></div><div id="rl-body">'+skeletonKpis(8)+skeletonCards(4)+'</div>';
+  '</div></div><div id="rl-body">'+skeletonKpis(12)+skeletonCards(4)+'</div>';
   const applyRel=debounce(function(){ markFilters(); loadRelatorios(); },350);
   const syncRel=bindQuickPeriods('#rl-qp','#rl-de','#rl-ate',function(){ loadRelatorios(); });
   syncRel(); markFilters();
@@ -1866,7 +1866,7 @@ function vRelatorios(){
 }
 
 function loadRelatorios(){
-  $('#rl-body').innerHTML=skeletonKpis(8)+skeletonCards(4);
+  $('#rl-body').innerHTML=skeletonKpis(12)+skeletonCards(4);
   swrGs('relatorios',[S.token,{de:$('#rl-de').value,ate:$('#rl-ate').value,
     servicoId:$('#rl-serv').value||null}],'relatorios',function(r){
     REL_DATA=r;
@@ -1891,6 +1891,13 @@ function loadRelatorios(){
       kpi('Decanulações',k.decanulacaoConcluidas+' <small>/ '+k.decanulacaoProtocolo+'</small>',
         'concluídas / em protocolo'+(k.decanulacaoTempoMedio!==null?' · média '+k.decanulacaoTempoMedio+' dias':''),null,'decan')+
       kpi('Óbitos',k.obitos,'entre '+k.saidas+' saídas no período',null,'obito')+
+      kpi('Alta fonoaudiológica',(k.taxaAltaFono===null?'—':k.taxaAltaFono+'<small>%</small>'),
+        (k.altaFonoTotal?k.altaFonoSim+' de '+k.altaFonoTotal+' com desfecho informado (ambulatório)':'sem registros no período'),null,'decan')+
+      kpi('Atendimentos extra',(k.taxaAtendimentoExtra===null?'—':k.taxaAtendimentoExtra+'<small>%</small>'),
+        (k.atendimentosPeriodo?k.atendimentosExtra+' de '+k.atendimentosPeriodo+' atendimentos fora da rotina':'sem atendimentos no período'),null,'atend')+
+      kpi('Frenotomia no hospital',(k.taxaFrenotomiaHospital===null?'—':k.taxaFrenotomiaHospital+'<small>%</small>'),
+        (k.frenotomiaHospitalTotal?k.frenotomiaHospitalSim+' de '+k.frenotomiaHospitalTotal+' frenotomias':'sem registros no período'),null,'tri')+
+      kpi('Reuniões',k.reunioes,k.reunioesParticipantes+' participantes',null,'reun')+
     '</div>'+
     '<div class="grid two" style="margin-top:14px">'+
       relSec('Desfecho na saída (dieta)',r.desfechos)+
@@ -1899,7 +1906,15 @@ function loadRelatorios(){
       relSec('Origem da solicitação',r.origens,true)+
       relSec('Idade gestacional na admissão',r.idadeGestacional)+
       relSec('Prioridade de atendimento',r.prioridades,true)+
-      '<div class="card panel" style="grid-column:1/-1"><h3>Produção mensal</h3>'+mensalTable(r.serieMensal)+'</div>'+
+      relSec('Resultado — teste da orelhinha',r.resultadoOrelhinha)+
+      relSec('Resultado — teste da linguinha',r.resultadoLinguinha,true)+
+      relSec('Fatores de risco (orelhinha)',r.fatoresRisco)+
+      relSec('Local da frenotomia',r.locaisFrenotomia,true)+
+      relSec('Conduta no retorno (linguinha)',r.condutaLinguinha)+
+      relSec('Atendimentos extra por profissional',r.extraPorProfissional,true)+
+      relSec('Reuniões por setor',r.reunioesPorSetor)+
+      relSec('Reuniões por fonoaudiólogo',r.reunioesPorFono,true)+
+      '<div class="card panel" style="grid-column:1/-1"><h3>Demonstrativo mensal</h3>'+mensalTable(r.serieMensal)+'</div>'+
     '</div>';
     respTables($('#rl-body'));
   });
@@ -1913,20 +1928,24 @@ function relSec(t,arr,alt){
 }
 
 function fmtMes(m){ const p=String(m||'').split('-'); return p.length===2?p[1]+'/'+p[0]:esc(m); }
+const MENSAL_COLS=[
+  ['admissoes','Admissões'],['saidas','Saídas'],['obitos','Óbitos'],
+  ['atendimentos','Atendimentos'],['procedimentos','Procedimentos'],
+  ['desmamesConcluidos','Desmames concl.'],['decanulacoesConcluidas','Decanulações'],
+  ['triagens','Triagens'],['reunioes','Reuniões']
+];
 function mensalTable(serie){
-  if(!serie||!serie.length) return emptyState('chart','Sem produção no período','Ajuste os filtros de data ou serviço.');
-  const tot={admissoes:0,saidas:0,atendimentos:0,procedimentos:0};
-  serie.forEach(function(m){ tot.admissoes+=m.admissoes; tot.saidas+=m.saidas;
-    tot.atendimentos+=m.atendimentos; tot.procedimentos+=m.procedimentos; });
-  return '<div class="tbl-wrap"><table><thead><tr><th>Mês</th><th class="r">Admissões</th>'+
-    '<th class="r">Saídas</th><th class="r">Atendimentos</th><th class="r">Procedimentos</th></tr></thead><tbody>'+
+  if(!serie||!serie.length) return emptyState('chart','Sem movimento no período','Ajuste os filtros de data ou serviço.');
+  const tot={}; MENSAL_COLS.forEach(function(c){ tot[c[0]]=0; });
+  serie.forEach(function(m){ MENSAL_COLS.forEach(function(c){ tot[c[0]]+=m[c[0]]||0; }); });
+  return '<div class="tbl-wrap"><table><thead><tr><th>Mês</th>'+
+    MENSAL_COLS.map(function(c){return '<th class="r">'+c[1]+'</th>';}).join('')+'</tr></thead><tbody>'+
     serie.map(function(m){
-      return '<tr><td><b>'+fmtMes(m.mes)+'</b></td><td class="r num">'+m.admissoes+'</td>'+
-        '<td class="r num">'+m.saidas+'</td><td class="r num">'+m.atendimentos+'</td>'+
-        '<td class="r num">'+m.procedimentos+'</td></tr>';
+      return '<tr><td><b>'+fmtMes(m.mes)+'</b></td>'+
+        MENSAL_COLS.map(function(c){return '<td class="r num">'+(m[c[0]]||0)+'</td>';}).join('')+'</tr>';
     }).join('')+
-    '<tr><td><b>Total</b></td><td class="r num"><b>'+tot.admissoes+'</b></td><td class="r num"><b>'+tot.saidas+'</b></td>'+
-    '<td class="r num"><b>'+tot.atendimentos+'</b></td><td class="r num"><b>'+tot.procedimentos+'</b></td></tr>'+
+    '<tr><td><b>Total</b></td>'+
+    MENSAL_COLS.map(function(c){return '<td class="r num"><b>'+tot[c[0]]+'</b></td>';}).join('')+'</tr>'+
   '</tbody></table></div>';
 }
 
@@ -1952,17 +1971,25 @@ function exportRelCSV(){
   push(['Ganho médio na escala FOIS',k.foisGanhoMedio===null?'—':k.foisGanhoMedio,k.foisGanhoN+' pacientes']);
   push(['Decanulações concluídas',k.decanulacaoConcluidas,k.decanulacaoProtocolo+' em protocolo']);
   push(['Tempo médio até decanular (dias)',k.decanulacaoTempoMedio===null?'—':k.decanulacaoTempoMedio,'']);
+  push(['Alta fonoaudiológica (%, ambulatório)',k.taxaAltaFono===null?'—':k.taxaAltaFono,k.altaFonoSim+' de '+k.altaFonoTotal]);
+  push(['Atendimentos extra (%)',k.taxaAtendimentoExtra===null?'—':k.taxaAtendimentoExtra,k.atendimentosExtra+' de '+k.atendimentosPeriodo]);
+  push(['Frenotomia no hospital (%)',k.taxaFrenotomiaHospital===null?'—':k.taxaFrenotomiaHospital,k.frenotomiaHospitalSim+' de '+k.frenotomiaHospitalTotal]);
+  push(['Reuniões no período',k.reunioes,k.reunioesParticipantes+' participantes']);
   const secoes=[['DESFECHO NA SAÍDA',r.desfechos],['JUSTIFICATIVA DO DESMAME',r.justificativaDesmame],
     ['HIPÓTESES DIAGNÓSTICAS',r.hipoteses],['ORIGEM DA SOLICITAÇÃO',r.origens],
-    ['IDADE GESTACIONAL',r.idadeGestacional],['PRIORIDADE',r.prioridades]];
+    ['IDADE GESTACIONAL',r.idadeGestacional],['PRIORIDADE',r.prioridades],
+    ['RESULTADO — ORELHINHA',r.resultadoOrelhinha],['RESULTADO — LINGUINHA',r.resultadoLinguinha],
+    ['FATORES DE RISCO (ORELHINHA)',r.fatoresRisco],['LOCAL DA FRENOTOMIA',r.locaisFrenotomia],
+    ['CONDUTA NO RETORNO (LINGUINHA)',r.condutaLinguinha],['ATENDIMENTOS EXTRA POR PROFISSIONAL',r.extraPorProfissional],
+    ['REUNIÕES POR SETOR',r.reunioesPorSetor],['REUNIÕES POR FONOAUDIÓLOGO',r.reunioesPorFono]];
   secoes.forEach(function(s){
     if(!s[1]||!s[1].length) return;
     push([]); push([s[0],'TOTAL']);
     s[1].forEach(function(i){ push([i.nome,i.total]); });
   });
   if(r.serieMensal.length){
-    push([]); push(['MÊS','ADMISSÕES','SAÍDAS','ATENDIMENTOS','PROCEDIMENTOS']);
-    r.serieMensal.forEach(function(m){ push([fmtMes(m.mes),m.admissoes,m.saidas,m.atendimentos,m.procedimentos]); });
+    push([]); push(['MÊS'].concat(MENSAL_COLS.map(function(c){return c[1].toUpperCase();})));
+    r.serieMensal.forEach(function(m){ push([fmtMes(m.mes)].concat(MENSAL_COLS.map(function(c){return m[c[0]]||0;}))); });
   }
   const blob=new Blob(['﻿'+linhas.join('\n')],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');

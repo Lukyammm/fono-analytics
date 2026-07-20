@@ -1494,6 +1494,15 @@ function relatorios(token, filtro) {
     if (desfechoDe(e) === 'VIA ORAL') vaaParaVO++;
   });
 
+  // ------ alta fonoaudiológica (campo específico do AMBULATÓRIO) ------
+  let altaFonoSim = 0, altaFonoTotal = 0;
+  saidas.forEach(function(e) {
+    const af = String(e.altaFono || '').toUpperCase().trim();
+    if (af !== 'SIM' && af !== 'NÃO' && af !== 'NAO') return;
+    altaFonoTotal++;
+    if (af === 'SIM') altaFonoSim++;
+  });
+
   // ------ permanência, intensidade e tempo de resposta ------
   let somaPerm = 0, nPerm = 0, somaAtdPac = 0, nAtdPac = 0;
   saidas.forEach(function(e) {
@@ -1575,23 +1584,86 @@ function relatorios(token, filtro) {
     if (g) igBandas[g] = (igBandas[g] || 0) + 1;
   });
 
-  // ------ produção mês a mês ------
+  // ------ atendimentos extra (fora da rotina) — indicador de carga não planejada ------
+  const atendPeriodo = atendTodos.filter(function(a) { return epIdx[a.episodioId] && dentroPeriodo_(a.data, de, ate); });
+  let atdExtra = 0;
+  const extraPorProf = {};
+  atendPeriodo.forEach(function(a) {
+    if (!truthy_(a.extra)) return;
+    atdExtra++;
+    const prof = a.profissional || '—';
+    extraPorProf[prof] = (extraPorProf[prof] || 0) + 1;
+  });
+
+  // ------ triagem neonatal (só quando não filtrado por serviço — não é escopada por setor) ------
+  const triagAll = sheetToObjects_('Triagens').filter(function(t) { return dentroPeriodo_(t.dataExame, de, ate); });
+  const resultadoPorTipo = {};
+  triagAll.filter(function(t) { return String(t.tipo || '').indexOf('RETORNO_') !== 0; }).forEach(function(t) {
+    const r = String(t.resultado || '').toUpperCase().trim();
+    if (!r) return;
+    if (!resultadoPorTipo[t.tipo]) resultadoPorTipo[t.tipo] = {};
+    resultadoPorTipo[t.tipo][r] = (resultadoPorTipo[t.tipo][r] || 0) + 1;
+  });
+  const fatoresRisco = {};
+  triagAll.filter(function(t) { return t.tipo === 'ORELHINHA'; }).forEach(function(t) {
+    String(t.fatoresRisco || '').split(' | ').forEach(function(f) {
+      f = f.trim(); if (f) fatoresRisco[f] = (fatoresRisco[f] || 0) + 1;
+    });
+  });
+  let frenHospSim = 0, frenHospTotal = 0;
+  triagAll.filter(function(t) { return t.tipo === 'LINGUINHA'; }).forEach(function(t) {
+    const fh = String(t.frenotomiaHospital || '').toUpperCase();
+    if (fh !== 'SIM' && fh !== 'NÃO' && fh !== 'NAO') return;
+    frenHospTotal++;
+    if (fh === 'SIM') frenHospSim++;
+  });
+  const locaisFrenotomia = {}, condutasLinguinha = {};
+  triagAll.filter(function(t) { return t.tipo === 'RETORNO_LINGUINHA'; }).forEach(function(t) {
+    const lf = String(t.localFrenotomia || '').trim();
+    if (lf) locaisFrenotomia[lf] = (locaisFrenotomia[lf] || 0) + 1;
+    const c = String(t.conduta || '').trim();
+    if (c) condutasLinguinha[c] = (condutasLinguinha[c] || 0) + 1;
+  });
+
+  // ------ reuniões ------
+  const reunPeriodo = sheetToObjects_('Reunioes').filter(function(r) { return dentroPeriodo_(r.data, de, ate); });
+  const reunPorSetor = {}, reunPorFono = {};
+  reunPeriodo.forEach(function(r) {
+    const s = String(r.setor || '').trim() || '—'; reunPorSetor[s] = (reunPorSetor[s] || 0) + 1;
+    const f = String(r.fonoaudiologo || '').trim() || '—'; reunPorFono[f] = (reunPorFono[f] || 0) + 1;
+  });
+
+  // ------ demonstrativo mensal: indicadores de resultado mês a mês, não só produção ------
   const meses = {};
   const mesReg = function(m) {
     if (!/^\d{4}-\d{2}$/.test(m)) return null;
-    if (!meses[m]) meses[m] = { mes: m, admissoes: 0, saidas: 0, atendimentos: 0, procedimentos: 0 };
+    if (!meses[m]) meses[m] = { mes: m, admissoes: 0, saidas: 0, obitos: 0, atendimentos: 0,
+      procedimentos: 0, desmamesConcluidos: 0, decanulacoesConcluidas: 0, triagens: 0, reunioes: 0 };
     return meses[m];
   };
   admitidos.forEach(function(e) { const r = mesReg(String(e.dataAdmissao || '').slice(0, 7)); if (r) r.admissoes++; });
-  saidas.forEach(function(e) { const r = mesReg(String(e.dataSaida || '').slice(0, 7)); if (r) r.saidas++; });
-  atendTodos.forEach(function(a) {
-    if (!epIdx[a.episodioId] || !dentroPeriodo_(a.data, de, ate)) return;
+  saidas.forEach(function(e) {
+    const r = mesReg(String(e.dataSaida || '').slice(0, 7)); if (!r) return;
+    r.saidas++;
+    if (desfechoDe(e) === 'ÓBITO') r.obitos++;
+  });
+  atendPeriodo.forEach(function(a) {
     const r = mesReg(String(a.data).slice(0, 7));
     if (!r) return;
     r.atendimentos++;
     const procs = String(a.procedimentos || '').split(' | ').filter(function(x) { return x; });
     r.procedimentos += Math.max(1, procs.length);
   });
+  episodios.forEach(function(e) {
+    if (!dentroPeriodo_(e.vaaConclusao, de, ate)) return;
+    const r = mesReg(String(e.vaaConclusao).slice(0, 7)); if (r) r.desmamesConcluidos++;
+  });
+  emProtocolo.forEach(function(e) {
+    if (!e.decanulacaoData || !dentroPeriodo_(e.decanulacaoData, de, ate)) return;
+    const r = mesReg(String(e.decanulacaoData).slice(0, 7)); if (r) r.decanulacoesConcluidas++;
+  });
+  triagAll.forEach(function(t) { const r = mesReg(String(t.dataExame).slice(0, 7)); if (r) r.triagens++; });
+  reunPeriodo.forEach(function(r0) { const r = mesReg(String(r0.data).slice(0, 7)); if (r) r.reunioes++; });
   const serieMensal = Object.keys(meses).sort().map(function(m) { return meses[m]; });
 
   const top = function(obj, n) {
@@ -1615,7 +1687,15 @@ function relatorios(token, filtro) {
       desmameTempoMedio: media(somaDesm, nDesm),
       foisGanhoMedio: media(somaGanho, nGanho), foisGanhoN: nGanho,
       decanulacaoProtocolo: emProtocolo.length, decanulacaoConcluidas: decanulados,
-      decanulacaoTempoMedio: media(somaDec, nDec)
+      decanulacaoTempoMedio: media(somaDec, nDec),
+      altaFonoSim: altaFonoSim, altaFonoTotal: altaFonoTotal,
+      taxaAltaFono: altaFonoTotal ? Math.round(altaFonoSim / altaFonoTotal * 100) : null,
+      atendimentosPeriodo: atendPeriodo.length, atendimentosExtra: atdExtra,
+      taxaAtendimentoExtra: atendPeriodo.length ? Math.round(atdExtra / atendPeriodo.length * 100) : null,
+      frenotomiaHospitalSim: frenHospSim, frenotomiaHospitalTotal: frenHospTotal,
+      taxaFrenotomiaHospital: frenHospTotal ? Math.round(frenHospSim / frenHospTotal * 100) : null,
+      reunioes: reunPeriodo.length,
+      reunioesParticipantes: reunPeriodo.reduce(function(s, r) { return s + (Number(r.participantes) || 0); }, 0)
     },
     desfechos: top(desfechos, 8),
     justificativaDesmame: top(justDesmame, 12),
@@ -1623,6 +1703,14 @@ function relatorios(token, filtro) {
     origens: top(origens, 8),
     prioridades: top(prioridades, 12),
     idadeGestacional: top(igBandas, 6),
+    resultadoOrelhinha: top(resultadoPorTipo.ORELHINHA || {}, 6),
+    resultadoLinguinha: top(resultadoPorTipo.LINGUINHA || {}, 6),
+    fatoresRisco: top(fatoresRisco, 10),
+    locaisFrenotomia: top(locaisFrenotomia, 6),
+    condutaLinguinha: top(condutasLinguinha, 10),
+    extraPorProfissional: top(extraPorProf, 10),
+    reunioesPorSetor: top(reunPorSetor, 10),
+    reunioesPorFono: top(reunPorFono, 10),
     serieMensal: serieMensal
   };
 }
